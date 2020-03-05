@@ -17,7 +17,7 @@
 
 #define PORT 9000
 int server_sockfd = -1;
-int client_sockfd[2] = {-1, -1};
+int client_sockfd[3] = {-1, -1, -1};
 struct sockaddr_in client_addr;
 int data_num = 1000;
 std::mutex lock;
@@ -30,7 +30,7 @@ void handlerThread(int sockfd, int flag) {
     std::string packet;
     if (flag > 0) {
         lock.lock();
-        send(sockfd, last_send_packet.c_str(), last_send_packet.size(), 0);
+        send(sockfd, last_send_packet.c_str(), last_send_packet.size(), MSG_NOSIGNAL);
         lock.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
@@ -48,7 +48,7 @@ void handlerThread(int sockfd, int flag) {
         last_send_packet = packet;
         //std::cout << time.c_str() << " " << time.size() << std::endl;
         //std::cout << time << std::endl;
-        send(sockfd, packet.c_str(), packet.size(), 0);
+        send(sockfd, packet.c_str(), packet.size(), MSG_NOSIGNAL);
         lock.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
@@ -85,7 +85,7 @@ int main(int argc, char const *argv[])
 
     socklen_t sockLen = sizeof(client_addr);
 
-    std::thread t[2];
+    std::thread t[3];
 
     while(1) {
         int fd;
@@ -99,11 +99,11 @@ int main(int argc, char const *argv[])
         //send(fd, last_send_packet.c_str(), last_send_packet.size(), 0);
         client_sockfd[count] = fd;
         t[count] = std::thread(handlerThread, fd, count);
-        if (count == 1)
+        if (count == 2)
             break;
         t[count].detach();
     }
-    t[1].join();
+    t[2].join();
     // for (int i = 0; i < data_num; ++i) {
     //     //memset(sendBuffer, 0, sizeof(sendBuffer));
     //     std::string time = "PacketNumber:" + std::to_string(i) + " time:" + std::to_string(getMicros());
@@ -114,6 +114,7 @@ int main(int argc, char const *argv[])
     //std::this_thread::sleep_for(std::chrono::seconds(30));
     close(client_sockfd[0]);
     close(client_sockfd[1]);
+    close(client_sockfd[2]);
     close(server_sockfd);
     return 0;
 }

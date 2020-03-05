@@ -72,7 +72,10 @@ int main(int argc, char const *argv[])
 	close(sockfd);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
+    
+    auto start = std::chrono::system_clock::now();
+    // Some computation here
+    
     sockfd = doConnect();
     std::cout << "do reconnect" << std::endl;
     while(len)
@@ -83,13 +86,36 @@ int main(int argc, char const *argv[])
 		//data[len] = '\0';
         if(len)
 		    statistic_map[std::string(data)] = getMicros();
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end-start;
+        if (elapsed_seconds.count() > 3.0)
+            break;
+        //std::cout << data << std::endl;
+	}
+
+    close(sockfd);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    sockfd = doConnect();
+    std::cout << "do reconnect" << std::endl;
+    while(len)
+	{
+        //std::cout << "len :" << len << std::endl;
+		memset(data, 0, 1024);
+		len = recv(sockfd, data, 1024, 0);
+		//data[len] = '\0';
+        if(len)
+		    statistic_map[std::string(data)] = getMicros();
+        // auto end = std::chrono::system_clock::now();
+        // std::chrono::duration<double> elapsed_seconds = end-start;
+        // if (elapsed_seconds.count() > 3.0)
+        //     break;
         //std::cout << data << std::endl;
 	}
 
     close(sockfd);
 
 	std::ofstream file;
-	file.open("TCPTest2.txt");
+	file.open("TCPTest3.txt");
 	for (auto i = statistic_map.begin(); i != statistic_map.end(); ++i) {
 		std::string past = (i->first).substr((i->first).find_last_of(":") + 1);
         //std::cout << i->first << "   " << past << std::endl;
