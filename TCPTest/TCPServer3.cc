@@ -36,7 +36,7 @@ void handlerThread(int sockfd, int flag) {
     }
     while (1) {
         lock.lock();
-        std::cout << "do while" << std::endl;
+        //std::cout << "do while" << std::endl;
         if (count > flag || packetSendNumber == data_num) {
             //std::cout << last_send_packet << std::endl;
             // last_send_packet = packet;
