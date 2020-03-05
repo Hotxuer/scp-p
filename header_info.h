@@ -27,8 +27,8 @@ struct tcphead{      //TCP首部
     uint16_t tcp_sum;
     uint16_t tcp_urp;
     // add mss option when shake hand , deperacate
-    uint16_t mss_option;
-    uint16_t mss;
+    //uint16_t mss_option;
+    //uint16_t mss;
 };
 
 
@@ -42,14 +42,14 @@ struct psdhead{ //TCP伪首�?
 
 
 struct TcpHeaderInfo {
-    in_addr_t src_ip;
+    //in_addr_t src_ip;
     in_addr_t dest_ip;
     uint16_t src_port;
     uint16_t dest_port;
     uint32_t seq;
     uint32_t ack;
     int type; //type 0: shake_hand , type 1: shake_hand_ack , type 2: data.
-    uint16_t pktlen;
+    //uint16_t pktlen;
 };
 
 typedef struct iphead iphead;
@@ -60,5 +60,6 @@ typedef struct TcpHeaderInfo headerinfo;
 struct scphead{
     // type 0: ack, type 1: reset, type 2: data
     uint32_t type:2,pktnum:15,ack:15;
+    uint32_t connid;
 };
 #endif

@@ -66,26 +66,18 @@ struct event_args{
 void handle_event(evutil_socket_t listener, short event, void *arg){
     event_args* ev_args = (event_args*) arg;
     size_t n = recvfrom(listener,ev_args->recvbuf,2048,0,NULL,NULL);
-    addr_port rmt;
-    sockaddr_in rmt_sock_addr;
-    int stat,scp_stat;
-    headerinfo h;
+    //addr_port rmt;
+    //sockaddr_in rmt_sock_addr;
+    uint32_t this_conn_id;
+    int stat;
+    //headerinfo h;
 
-    stat = parse_frame(ev_args->recvbuf + 14,n-14,rmt,ev_args->isserver);
+    stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,ev_args->isserver);
     switch (stat){
         case 1:
             printf("a request for exist connnection. \n");
         case 2:
             printf("a request from client.\n");
-            rmt_sock_addr.sin_addr.s_addr = rmt.sin;
-            rmt_sock_addr.sin_port = rmt.port;
-    
-            h = {ConnManager::get_local_ip(),rmt.sin,ConnManager::get_local_port(),rmt.port,0,1,1,0};
-            size_t hdrlen;
-            generate_tcp_packet((unsigned char*)ev_args->sendbuf,hdrlen,h);
-            
-            sendto(ConnManager::local_send_fd,ev_args->sendbuf,hdrlen,0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));  
-            printf("send back an ack\n");
             break;
         case 3:
             printf("recv a back SYN-ACK from server(not in the server).\n");

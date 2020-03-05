@@ -3,24 +3,28 @@
 #include "packet_generator.h"
 #define BUF_SZ 2048
 #define BUF_NUM 64
+#include "conn_id_manager.h"
+
 
 class FakeConnection;
 
-typedef struct addr_port{
+struct addr_port{
     in_addr_t sin;
     uint16_t port;
-} addr_port;
-
-bool compareaddr_port(const addr_port &pt1,const addr_port &pt2){
-  return pt1.sin < pt2.sin;
-}
+    bool operator < (const addr_port& a1) const{
+        return sin < a1.sin;
+    }
+    bool operator == (const addr_port& a1) const{
+      return (sin == a1.sin && port == a1.port);
+    }
+};
 
 class ConnManager{
 public:
-    static FakeConnection* get_conn(addr_port sin);
-    static int add_conn(addr_port sin,FakeConnection* scp_conn);
-    static bool exist_conn(addr_port sin);
-    static size_t del_conn(addr_port sin);
+    static FakeConnection* get_conn(uint32_t connid);
+    static int add_conn(uint32_t connid,FakeConnection* scp_conn);
+    static bool exist_conn(uint32_t connid);
+    static size_t del_conn(uint32_t connid);
     static void set_local_addr(const sockaddr_in local);
     static void set_local_ip(const in_addr_t local_ip);
     static void set_local_port(const uint16_t local_port); 
@@ -29,12 +33,21 @@ public:
     static int local_send_fd;
     static int local_recv_fd;
     static std::vector<FakeConnection*> get_all_connections();
+
+    static bool exist_addr(addr_port addr);
+    static bool add_addr(addr_port addr);
+    static bool del_addr(addr_port addr);
+
+    //static int local_connid; // client only
 private:
-    static std::map<addr_port,FakeConnection*,decltype(compareaddr_port)*> conn;
+    static std::map<uint32_t,FakeConnection*> conn;
     static struct sockaddr_in local_addr;
+    static std::set<addr_port> addr_pool;
+
 };
 
-std::map<addr_port,FakeConnection*,decltype(compareaddr_port)*> ConnManager::conn(compareaddr_port);
+std::map<uint32_t,FakeConnection*> ConnManager::conn;
+std::set<addr_port> ConnManager::addr_pool;
 struct sockaddr_in ConnManager::local_addr;
 int ConnManager::local_send_fd = 0;
 int ConnManager::local_recv_fd = 0;
@@ -49,7 +62,7 @@ public:
         remote_sin.sin_addr.s_addr = addr_pt.sin;
         remote_sin.sin_port = addr_pt.port;
     };
-    int on_pkt_recv(void* buf,size_t len);
+    int on_pkt_recv(void* buf,size_t len,addr_port srcaddr);
     size_t pkt_send(void* buf,size_t len);
     size_t pkt_resend(size_t bufnum);
 
@@ -61,8 +74,11 @@ public:
     bool lock_buffer(size_t bufnum);
     void unlock_buffer(size_t bufnum);
 
+    void set_conn_id(uint32_t connid);
+
 private:
     // -- tcp info --
+    uint32_t connection_id;
     bool isserver;
     uint32_t myseq,myack;
     bool is_establish;
@@ -88,23 +104,26 @@ private:
 //-------------------------------------------------------
 // ConnManager implementation
 //-------------------------------------------------------
-FakeConnection* ConnManager::get_conn(addr_port sin){
-    if(conn.find(sin) == conn.end()) return NULL;
-    return conn[sin];
+FakeConnection* ConnManager::get_conn(uint32_t connid){
+    if(conn.find(connid) == conn.end()) return NULL;
+    return conn[connid];
 }
 
-int ConnManager::add_conn(addr_port sin,FakeConnection* scp_conn){
-    conn[sin] = scp_conn;
+int ConnManager::add_conn(uint32_t connid,FakeConnection* scp_conn){
+    conn[connid] = scp_conn;
     return 0;
 }
 
-bool ConnManager::exist_conn(addr_port sin){
-    if(conn.find(sin) != conn.end()) return true;
+bool ConnManager::exist_conn(uint32_t connid){
+    if(conn.find(connid) != conn.end()) return true;
     else return false;
 }
 
-size_t ConnManager::del_conn(addr_port sin){
-    return conn.erase(sin);
+size_t ConnManager::del_conn(uint32_t connid){
+    if(conn.find(connid) != conn.end()){
+        delete conn[connid];
+    }
+    return conn.erase(connid);
     //return 0;
 }
 
@@ -136,6 +155,21 @@ std::vector<FakeConnection*> ConnManager::get_all_connections(){
     return v;
 }
 
+bool ConnManager::exist_addr(addr_port addr){
+    if(addr_pool.find(addr) != addr_pool.end()){
+        return true;
+    }
+    return false;
+}
+
+bool ConnManager::add_addr(addr_port addr){
+    return addr_pool.insert(addr).second;
+}
+
+bool ConnManager::del_addr(addr_port addr){
+    return addr_pool.erase(addr);
+}
+
 //--------------------------------------------------------
 // FakeConnection implementation
 //--------------------------------------------------------
@@ -159,7 +193,8 @@ void FakeConnection::unlock_buffer(size_t bufnum){
 // return 1 : legal ack
 // return -1 : reset request
 // return 2 : data packet
-int FakeConnection::on_pkt_recv(void* buf,size_t len){
+
+int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // modify ok
     // scp packet come in.
     // myack += len; //TCP ack
     scphead* scp = (scphead*) buf;
@@ -180,12 +215,19 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len){
         return -1;
     }else if(scp->type == 2) { // data ,sendback_ack
         uint16_t pkt_seq = scp->pktnum;
-        headerinfo h= {ConnManager::get_local_ip(),remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2,sizeof(scphead)};
+
+        if(!(srcaddr == remote_ip_port)){ // client ip change.
+            remote_ip_port = srcaddr;
+        }
+
+        headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
         size_t hdrlen; 
-        unsigned char ack_buf[20+20+5];
+
+        unsigned char ack_buf[30];
         generate_tcp_packet(ack_buf,hdrlen,h);
-        generate_scp_packet(ack_buf + hdrlen,0,0,pkt_seq);
-        sendto(ConnManager::local_send_fd,ack_buf,44,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
+        generate_scp_packet(ack_buf + hdrlen,0,0,pkt_seq,connection_id);
+        uint32_t sendsz = sizeof(tcphead)+ sizeof(scphead);
+        sendto(ConnManager::local_send_fd,ack_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
         return 2;
     }
 }
@@ -207,7 +249,7 @@ void packet_resend_thread(FakeConnection* fc, size_t bufnum){
 }
 
 // add scpheader / tcpheader.
-size_t FakeConnection::pkt_send(void* buffer,size_t len){
+size_t FakeConnection::pkt_send(void* buffer,size_t len){ // modify ok
     if(!is_establish) {
         printf("not established .\n");
         return 0;
@@ -218,31 +260,33 @@ size_t FakeConnection::pkt_send(void* buffer,size_t len){
         printf("buffer is full.\n");
         return 0;
     }
-    //buf_used.set(buf_num);
     // select a buffer and copy the packet to the buffer
-    uint16_t tot_len =  sizeof(scphead) + sizeof(tcphead) - 4 + sizeof(iphead) + len;
+    uint16_t tot_len =  sizeof(scphead) + sizeof(tcphead)  + len;
     memcpy(buf[bufnum] + tot_len - len,buffer,len);
     buflen[bufnum] = tot_len;
 
-    // generate ip_tcp_scp_packet
-    uint16_t iplen = (uint16_t) (len+sizeof(scphead));
-    headerinfo h= {ConnManager::get_local_ip(),remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2,iplen};
+    // generate tcp_scp_packet
+    //uint16_t iplen = (uint16_t) (len+sizeof(scphead));
+    headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
     size_t hdrlen;
     generate_tcp_packet((unsigned char*)buf[bufnum], hdrlen , h);
     myseq += sizeof(scphead) + len;//TCP seq
     uint16_t tbufnum = (uint16_t) bufnum;
-    generate_scp_packet((unsigned char*)buf[bufnum] + hdrlen,2,tbufnum,0);
-    size_t send_bytes = 0;
+    generate_scp_packet((unsigned char*)buf[bufnum] + hdrlen,2,tbufnum,0,connection_id);
+    size_t sendbytes = 0;
 #ifdef CLNTMODE
     //for(int i = 0;i < 2; i++){
         sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
     //}
 #else
+    printf("before send\n");
     for(int i = 0;i < 2; i++){
         sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
-    }  
+    } 
+    printf("after send.\n");
     // TODO: Create a thread for resend.  
     std::thread resend_thread(packet_resend_thread,this,bufnum);
+    resend_thread.detach();
     return sendbytes;
 #endif
     
@@ -270,5 +314,9 @@ int FakeConnection::get_used_num(){
         }
     }
     return -1;
+}
+
+void FakeConnection::set_conn_id(uint32_t connid){
+    connection_id = connid;
 }
 #endif
