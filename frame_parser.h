@@ -67,7 +67,9 @@ int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
 
 int reply_syn(addr_port src,uint32_t conn_id){
     int ret = 1;
-    if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
+    if(ConnManager::exist_addr(src)){
+        conn_id = ConnManager::get_connid(src);
+    }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
         conn_id = ConnidManager::getConnID();
         ConnManager::add_conn(conn_id,new FakeConnection(false,src));
         ConnManager::get_conn(conn_id)->set_conn_id(conn_id);

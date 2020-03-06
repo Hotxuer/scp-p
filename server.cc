@@ -130,8 +130,7 @@ void service_thread(bool isserver){
                 break;
         }
         // n = recvfrom(recv_rawsockfd, recvbuf, 1024, 0, NULL, NULL); 
-        // stat = parse_frame(recvbuf + 14,n-14);
-        
+        // stat = parse_frame(recvbuf + 14,n-14);    
     }
 }
 
