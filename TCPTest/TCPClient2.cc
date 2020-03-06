@@ -45,13 +45,15 @@ std::unordered_map<std::string, uint64_t> statistic_map;
 
 int main(int argc, char const *argv[])
 {
+	int flag;
 	int data_num = 1000;
 	if (argc == 2)
 		data_num = atoi(argv[1]);
     int reconnect_num = data_num / 2;
 
     int sockfd = doConnect();
-
+	flag = 1;
+    setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
 	printf("connected to server\n");
 
 	int len, count = 0;
@@ -71,9 +73,11 @@ int main(int argc, char const *argv[])
 	
 	close(sockfd);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(900));
 
     sockfd = doConnect();
+	flag = 1;
+    setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
     std::cout << "do reconnect" << std::endl;
     while(len)
 	{
