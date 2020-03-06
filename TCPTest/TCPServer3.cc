@@ -32,7 +32,7 @@ void handlerThread(int sockfd, int flag) {
         lock.lock();
         send(sockfd, last_send_packet.c_str(), last_send_packet.size(), MSG_NOSIGNAL);
         lock.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     while (1) {
         lock.lock();
@@ -50,17 +50,22 @@ void handlerThread(int sockfd, int flag) {
         //std::cout << time << std::endl;
         send(sockfd, packet.c_str(), packet.size(), MSG_NOSIGNAL);
         lock.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
 int main(int argc, char const *argv[])
 {
+    int flag;
 	if (argc == 2)
 		data_num = atoi(argv[1]);
     std::cout << data_num << std::endl;
 
     server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    flag = 1;
+    setsockopt(server_sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
+
     if (server_sockfd < 0) {
         printf("socket can not be initialized!\n");
         exit(-1);
@@ -96,7 +101,9 @@ int main(int argc, char const *argv[])
         }
         count++;
         //std::cout << last_send_packet << std::endl;
-        //send(fd, last_send_packet.c_str(), last_send_packet.size(), 0);
+        //send(fd, last_send_packet.c_str(), last_send_packet.size(), 0); 
+        flag = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
         client_sockfd[count] = fd;
         t[count] = std::thread(handlerThread, fd, count);
         if (count == 2)

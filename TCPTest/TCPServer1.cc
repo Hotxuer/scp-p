@@ -21,6 +21,7 @@ struct sockaddr_in client_addr;
 
 int main(int argc, char const *argv[])
 {
+    int flag;
     int data_num = 1000;
 	if (argc == 2)
 		data_num = atoi(argv[1]);
@@ -31,6 +32,9 @@ int main(int argc, char const *argv[])
         printf("socket can not be initialized!\n");
         exit(-1);
     }
+
+    flag = 1;
+    setsockopt(server_sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
@@ -55,13 +59,15 @@ int main(int argc, char const *argv[])
             printf("listen error!\n");
             exit(-1);
     }
+    flag = 1;
+    setsockopt(client_sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
 
     for (int i = 0; i < data_num; ++i) {
         //memset(sendBuffer, 0, sizeof(sendBuffer));
         std::string time = "PacketNumber:" + std::to_string(i) + " time:" + std::to_string(getMicros());
         std::cout << time.c_str() << " " << time.size() << std::endl;
         send(client_sockfd, time.c_str(), time.size(), 0);
-        //usleep(5000);
+        std::this_thread::sleep_for(std::chrono::seconds(100));
     }
 
     close(client_sockfd);
