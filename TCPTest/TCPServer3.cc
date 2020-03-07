@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <mutex>
+#include <netinet/tcp.h>
 
 #include "getTime.cc"
 

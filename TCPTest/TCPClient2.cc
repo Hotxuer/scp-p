@@ -13,6 +13,7 @@
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
+#include <netinet/tcp.h>
 #include "getTime.cc"
 
 #define SERVER_PORT 9000

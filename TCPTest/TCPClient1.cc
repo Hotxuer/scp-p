@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
+#include <netinet/tcp.h>
 #include <unordered_map>
 #include "getTime.cc"
 

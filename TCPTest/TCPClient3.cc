@@ -13,6 +13,7 @@
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
+#include <netinet/tcp.h>
 #include "getTime.cc"
 
 #define SERVER_PORT 9000
@@ -95,7 +96,7 @@ int main(int argc, char const *argv[])
 		    statistic_map[std::string(data)] = getMicros();
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        if (elapsed_seconds.count() > 7.0)
+        if (elapsed_seconds.count() > 5.0)
             break;
         //std::cout << data << std::endl;
 	}

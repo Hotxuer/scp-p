@@ -3,8 +3,8 @@
 #include <iostream>
 #include <unordered_set>
 
-//manager可以考虑写成unordered_map<uint32_t, sockaddr_in>保存在conn_manager�?
-//尽量用unordered_map,哈希查找，速度>>红黑�?
+//manager可以考虑写成unordered_map<uint32_t, sockaddr_in>保存在conn_manager中?
+//尽量用unordered_map,哈希查找，速度>>红黑树?
 //可以考虑manager选用LRU结构进行管理，清理LRU的末端？
 class ConnidManager{
 public:
@@ -44,7 +44,7 @@ void ConnidManager::delConnID(uint32_t connID) {
     }
 }
 
-//仅作为测�?
+//仅作为测试?
 // int main(int argc, char const *argv[])
 // {
 //     std::cout << getConnID() << " " << getConnID() << std::endl;

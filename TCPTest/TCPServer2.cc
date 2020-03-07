@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <mutex>
+#include <netinet/tcp.h>
 
 #include "getTime.cc"
 
@@ -45,10 +46,11 @@ void handlerThread(int sockfd, int flag) {
         }
         //memset(sendBuffer, 0, sizeof(sendBuffer));
         packet = "PacketNumber:" + std::to_string(packetSendNumber++) + " sendTime:" + std::to_string(getMicros());
-        last_send_packet = packet;
         //std::cout << time.c_str() << " " << time.size() << std::endl;
         //std::cout << time << std::endl;
         send(sockfd, packet.c_str(), packet.size(), 0);
+        last_send_packet = packet;
+
         lock.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
