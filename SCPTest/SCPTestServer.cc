@@ -51,12 +51,13 @@ void service_thread(bool isserver){
 
 void send_thread(){
     int count = 0;
+    const int prd = 100000;
     std::vector<FakeConnection*> v = ConnManager::get_all_connections();
     FakeConnection* fc = v[0];
     for(int i = 0;i < pktNum1 ; i++){
         std::string packet = "PacketNumber:" + std::to_string(count++) + " sendTime:" + std::to_string(getMicros()); 
         scp_send(packet.c_str(),packet.size(),v[0]);
-        usleep(50000);
+        usleep(prd);
     }
     printf("finish test1,test2 will start in 5 seconds.\n");
     sleep(5);
@@ -64,7 +65,7 @@ void send_thread(){
     for(int i = 0;i < pktNum2; i++){
         std::string packet = "PacketNumber:" + std::to_string(count++) + " sendTime:" + std::to_string(getMicros()); 
         scp_send(packet.c_str(),packet.size(),v[0]);
-        usleep(50000);        
+        usleep(prd);        
     }
     printf("finish test2,test3 will start in 5 seconds.\n");
     sleep(5);
@@ -72,7 +73,7 @@ void send_thread(){
     for(int i = 0;i < pktNum3; i++){
         std::string packet = "PacketNumber:" + std::to_string(count++) + " sendTime:" + std::to_string(getMicros()); 
         scp_send(packet.c_str(),packet.size(),v[0]);
-        usleep(50000);          
+        usleep(prd);          
     }
 }
 
