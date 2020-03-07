@@ -42,7 +42,7 @@ void rst_thread(int mode){
         if(ret == 0){
             printf("connect to server failed.\n");
         }
-        sleep(1);
+        sleep(5);
         ret = scp_connect(inet_addr(REMOTE_ADDR),17001);
         if(ret == 0){
             printf("connect to server failed.\n");
