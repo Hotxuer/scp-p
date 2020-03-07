@@ -2,6 +2,13 @@
 #include <thread>
 #include <unordered_map>
 #include <fstream>
+#include "../scp_interface.h"
+
+#define LOCAL_PORT_USED 17000
+#define REMOTE_PORT_USED 17001
+
+#define LOCAL_ADDR "202.120.38.100"
+#define REMOTE_ADDR "202.120.38.131"
 
 std::unordered_map<std::string, uint64_t> testData;
 
@@ -21,74 +28,93 @@ void recordTestResult(int number) {
 	file.close();
 }
 
-void runTest1(int& sockfd) {
-    int pktNum;
-    testData.clear();
-    while (pktNum != pktNum1) {
-        //简单写一个接收消息的循环即可
-        //假设接受的内容为data，是char数组，recv前先memset data
-        //recvpkt
-        //pktNum++
-        //假设recv的内容长度是len
-        if (len)
-            testData[data] = getMicros();
-        
-    }
-    recordTestResult(1);
-}
-
-void runTest2(int& sockfd) {
-    int pktNum;
-    testData.clear();
-    while (pktNum != pktNum1) {
-        //简单写一个接收消息的循环即可
-        //假设接受的内容为data，是char数组，recv前先memset data
-        //recvpkt
-        //pktNum++
-        //假设recv的内容长度是len
-        if (len)
-            testData[data] = getMicros();
-        if (pktNum == pktNum2 / 2) {
-            //把sockfd bind的port给改了
-            //reset();
+void rst_thread(int mode){
+    int ret;
+    if(mode == 1){
+        sleep(7);
+        ret = scp_connect(inet_addr(REMOTE_ADDR),17001);
+        if(ret == 0){
+            printf("connect to server failed.\n");
+        }
+    }else{
+        sleep(7);
+        ret = scp_connect(inet_addr(REMOTE_ADDR),17001);
+        if(ret == 0){
+            printf("connect to server failed.\n");
+        }
+        sleep(1);
+        ret = scp_connect(inet_addr(REMOTE_ADDR),17001);
+        if(ret == 0){
+            printf("connect to server failed.\n");
         }
     }
-    recordTestResult(2);
 }
 
-void runTest3(int& sockfd) {
-    bool reset1 = false;
-    auto start = std::chrono::system_clock::now();
-    std::chrono::duration<double> elapsed_seconds = end-start;
-    int pktNum;
+void service_thread(bool isserver){
+    int stat;size_t n;
+    char recvbuf[4096];
+    addr_port rmt;
+    uint32_t this_conn_id;
+    int scp_stat;
+    int recv_packets = 0;
     testData.clear();
-    while (pktNum != pktNum1) {
-        //简单写一个接收消息的循环即可
-        //假设接受的内容为data，是char数组，recv前先memset data
-        //recvpkt
-        //pktNum++
-        //假设recv的内容长度是len
-        if (len)
-            testData[data] = getMicros();
-        if (pktNum == pktNum3 / 2) {
-            //把sockfd bind的port给改了
-            //reset();
-            start = std::chrono::system_clock::now();
-            reset1 = true;
+    while(1){
+        n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
+        stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver);
+        switch (stat){
+            case 1:
+            case 2:
+                printf("This should not be a client packet.\n");
+                break;
+            case 3:
+                printf("recv a back SYN-ACK from server.\n");
+                break;
+            case 4:
+                printf("recv a reset request.\n");
+                break;
+            case 5:
+                printf("recv a scp redundent ack.\n");
+                break;
+            case 6:
+                printf("recv a scp packet ack.\n");
+                break;
+            case 7:
+                printf("recv a scp data packet.\n");
+                break;
+            case -1:
+                printf("recv a illegal frame.\n");
+                break;
+            default:
+                break;
         }
-        if (reset1) {
-            auto end = std::chrono::system_clock::now();
-            std::chrono::duration<double> elapsed_seconds = end - start;
-            if (elapsed_seconds.count() > 3.0) {
-                reset1 = false;
-                //把sockfd bind的port改了
-                //reset();
+        if(stat == 7){
+            std::string data = std::string(recvbuf + 62,n - 62);
+            if(testData.count(data) == 0){
+                testData[data] = getMicros();
+                recv_packets++;
+            }
+            if(recv_packets == pktNum1){
+                recordTestResult(1);
+                testData.clear();
+                std::thread rst(rst_thread,1);
+                rst.detach();
+            }
+            if(recv_packets == pktNum1 + pktNum2){
+                recordTestResult(2);
+                testData.clear();
+                std::thread rst2(rst_thread,2);
+                rst2.detach();
+            }
+            if(recv_packets == pktNum1 + pktNum2 + pktNum3){
+                recordTestResult(3);
+                testData.clear();
             }
         }
-        
+        // n = recvfrom(recv_rawsockfd, recvbuf, 1024, 0, NULL, NULL); 
+        // stat = parse_frame(recvbuf + 14,n-14);   
     }
-    recordTestResult(3);
 }
+
 
 int main(int argc, char const *argv[])
 {
@@ -99,21 +125,18 @@ int main(int argc, char const *argv[])
         pktNum2 = atoi(argv[2]);
     if (argc >= 4)
         pktNum3 = atoi(argv[3]);
-    int sockfd;
-    //to initialize sockfd 
-    std::cout << "start test1" <<std::endl;
-    runTest1(sockfd);
-    //to close sockfd
-    std::cout << "finish test1, start test2 in 5 seconds" <<std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-    //to initialized sockfd
-    runTest2(sockfd);
-    //to close sockfd
-    std::cout << "finish test2, start test3 in 5 seconds" <<std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-    //to initialized sockfd
-    runTest3(sockfd);
-    //to close sockfd
-    std::cout << "finish test3" << std::endl;
+
+    int ret = init_rawsocket();
+    if(ret) printf("init_rawsocket error.");
+    scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
+    std::thread ser(service_thread,false);
+    ser.detach();
+    sleep(2);
+    ret = scp_connect(inet_addr(REMOTE_ADDR),17001);
+    if(ret == 0){
+        printf("connect to server failed.\n");
+    }
+    
+    sleep(10000);
     return 0;
 }
