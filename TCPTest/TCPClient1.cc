@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
+#include <netinet/tcp.h>
 #include <unordered_map>
 #include "getTime.cc"
 
@@ -23,6 +24,7 @@ std::unordered_map<std::string, uint64_t> statistic_map;
 
 int main(int argc, char const *argv[])
 {
+	int flag;
 	int data_num = 1000;
 	if (argc == 2)
 		data_num = atoi(argv[1]);
@@ -46,6 +48,9 @@ int main(int argc, char const *argv[])
 		close(sockfd);
 		exit(-1);
 	}
+
+	flag = 1;
+    setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
 
 	printf("connected to server\n");
 

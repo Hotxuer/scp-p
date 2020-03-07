@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <mutex>
+#include <netinet/tcp.h>
 
 #include "getTime.cc"
 
@@ -45,17 +46,19 @@ void handlerThread(int sockfd, int flag) {
         }
         //memset(sendBuffer, 0, sizeof(sendBuffer));
         packet = "PacketNumber:" + std::to_string(packetSendNumber++) + " sendTime:" + std::to_string(getMicros());
-        last_send_packet = packet;
         //std::cout << time.c_str() << " " << time.size() << std::endl;
         //std::cout << time << std::endl;
         send(sockfd, packet.c_str(), packet.size(), 0);
+        last_send_packet = packet;
+
         lock.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
 int main(int argc, char const *argv[])
 {
+    int flag;
 	if (argc == 2)
 		data_num = atoi(argv[1]);
     std::cout << data_num << std::endl;
@@ -66,6 +69,8 @@ int main(int argc, char const *argv[])
         exit(-1);
     }
 
+    flag = 1;
+    setsockopt(server_sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
@@ -94,6 +99,8 @@ int main(int argc, char const *argv[])
             printf("listen error!\n");
             exit(-1);
         }
+        flag = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&flag, sizeof(flag));
         count++;
         //std::cout << last_send_packet << std::endl;
         //send(fd, last_send_packet.c_str(), last_send_packet.size(), 0);

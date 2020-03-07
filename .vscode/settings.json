@@ -47,6 +47,7 @@
         "stdexcept": "cpp",
         "streambuf": "cpp",
         "condition_variable": "cpp",
-        "mutex": "cpp"
+        "mutex": "cpp",
+        "unordered_set": "cpp"
     }
 }
