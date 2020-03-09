@@ -1,6 +1,6 @@
 all: server client server_libevent
 
-dependence=common_lib.h header_info.h packet_generator.h  conn_manager.h frame_parser.h
+dependence=common_lib.h header_info.h packet_generator.h  conn_manager.h frame_parser.h scp_interface.h
 
 server: $(dependence) server.cc
 	g++ -o server $(dependence) server.cc -lpthread

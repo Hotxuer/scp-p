@@ -68,13 +68,17 @@ int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
 int reply_syn(addr_port src,uint32_t conn_id){
     int ret = 1;
     if(ConnManager::exist_addr(src)){
+        printf("exist address.\n");
+        printf("conn_id : %d.\n",conn_id);
         conn_id = ConnManager::get_connid(src);
+        printf("conn_id : %d.\n",conn_id);
     }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
         conn_id = ConnidManager::getConnID();
         ConnManager::add_conn(conn_id,new FakeConnection(false,src));
         ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
         ConnManager::get_conn(conn_id)->establish_ok();
         ConnManager::get_conn(conn_id)->update_para(0,1);
+        ConnManager::add_addr(src,conn_id);
         ret = 2;
     }
 
@@ -86,12 +90,17 @@ int reply_syn(addr_port src,uint32_t conn_id){
 
     sockaddr_in rmt_sock_addr;
     
+    rmt_sock_addr.sin_family = AF_INET;
     rmt_sock_addr.sin_addr.s_addr = src.sin;
     rmt_sock_addr.sin_port = src.port;
 
     //printf("port : %d\n",src.port);
     int sz = sendto(ConnManager::local_send_fd,ackbuf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
     printf("send sz : %d\n",sz);
+    if(sz == -1){
+        int err = errno;
+        printf("errno %d.\n",err);
+    }
     return ret;  
 }
 

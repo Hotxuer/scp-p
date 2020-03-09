@@ -2,7 +2,7 @@
 #define CONN_MNG
 #include "packet_generator.h"
 #define BUF_SZ 2048
-#define BUF_NUM 64
+#define BUF_NUM 1024
 #include "conn_id_manager.h"
 
 
@@ -61,9 +61,10 @@ public:
         remote_sin.sin_family = AF_INET;
         remote_sin.sin_addr.s_addr = addr_pt.sin;
         remote_sin.sin_port = addr_pt.port;
+        pkt_in_buf = 0;
     };
     int on_pkt_recv(void* buf,size_t len,addr_port srcaddr);
-    size_t pkt_send(void* buf,size_t len);
+    size_t pkt_send(const void* buf,size_t len);
     size_t pkt_resend(size_t bufnum);
 
     ~FakeConnection() = default;
@@ -76,6 +77,7 @@ public:
     void unlock_buffer(size_t bufnum);
 
     void set_conn_id(uint32_t connid);
+    //std::mutex buf_mutex[BUF_NUM];
 
 private:
     // -- tcp info --
@@ -97,6 +99,7 @@ private:
 
     // a lock used for retransmit
     std::bitset<BUF_NUM> buf_lock;
+    
 
 };
 
@@ -172,7 +175,7 @@ bool ConnManager::del_addr(addr_port addr){
 }
 
 uint32_t ConnManager::get_connid(addr_port addr){
-    if(addr_pool.find(addr) != addr_pool.end()){
+    if(addr_pool.find(addr) == addr_pool.end()){
         return 0;
     }else{
         return addr_pool[addr];
@@ -213,16 +216,26 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // modi
 
     if(scp->type == 0){ // ack
         uint16_t pkt_ack = scp->ack;
+        printf("ack_coming.\n");
+        // buf_mutex[pkt_ack].lock();
         if(!buf_used.test(pkt_ack)){
             //redundent ack
+            // buf_mutex[pkt_ack].unlock();
             return 0;
         }
         // need to lock the buffer first
         while(!lock_buffer(pkt_ack)){
+            usleep(1000);
+        }
+        //while(!lock_buffer(pkt_ack)){
+            printf("release buffer.\n");
             buf_used.reset(pkt_ack);
             buflen[pkt_ack] = 0;
+            pkt_in_buf--;
+            printf("pkt_in_buf: %ld\n",pkt_in_buf);
             unlock_buffer(pkt_ack);
-        }
+        //}
+        //buf_mutex[pkt_ack].unlock();
         return 1;
     }else if(scp->type == 1) { // reset
         return -1;
@@ -246,19 +259,24 @@ void packet_resend_thread(FakeConnection* fc, size_t bufnum){
     int maxresend = 5;
     while(maxresend--){
         usleep(400000);
+        //fc->buf_mutex[bufnum].lock();
+        
         if(!fc->lock_buffer(bufnum)){
             break;
         }
+        
         if(fc->pkt_resend(bufnum) == 0){
             fc->unlock_buffer(bufnum);
+            //fc->buf_mutex[bufnum].unlock();
             break; 
         }
+        //fc->buf_mutex[bufnum].unlock();
         fc->unlock_buffer(bufnum);
     }
 }
 
 // add scpheader / tcpheader.
-size_t FakeConnection::pkt_send(void* buffer,size_t len){ // modify ok
+size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     if(!is_establish) {
         printf("not established .\n");
         return 0;
@@ -292,7 +310,8 @@ size_t FakeConnection::pkt_send(void* buffer,size_t len){ // modify ok
     for(int i = 0;i < 2; i++){
         sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
     } 
-    printf("after send.\n");
+    
+    //printf("after send.\n");
     // TODO: Create a thread for resend.  
     std::thread resend_thread(packet_resend_thread,this,bufnum);
     resend_thread.detach();
@@ -312,14 +331,18 @@ size_t FakeConnection::pkt_resend(size_t bufnum){
 }
 
 int FakeConnection::get_used_num(){
-    if(pkt_in_buf >= BUF_NUM - 2){ // at least 2 empty
+    if(pkt_in_buf >= BUF_NUM){ // at least 2 empty
+        printf("??\n");
         return -1;
     }
     size_t tpvt = pvt;
     while(pvt != (tpvt + BUF_NUM- 1)%BUF_NUM){
         if(!buf_used.test(pvt) && !buf_lock.test(pvt)){
             buf_used.set(pvt);
-            pvt++;
+            pvt = (pvt+1) % BUF_NUM;
+            pkt_in_buf++;
+            //buf_mutex[pvt].unlock();
+            if(pvt == 0) return BUF_NUM - 1;
             return pvt - 1;
         }else{
             pvt = (pvt+1) % BUF_NUM;
