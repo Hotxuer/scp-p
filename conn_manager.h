@@ -193,7 +193,8 @@ int ConnManager::clear_dead_conn() {
     uint64_t now = getSeconds();    
     
     for (FakeConnection *conn : conns) {
-        uint64_t gap = now - conn->get_last_acitve_time();
+        uint64_t active = conn->get_last_acitve_time();
+        int gap = now > active ? now - active : 0;
         //60分钟没有active则判定为dead connection，做清理
         if (gap > 3600) {
             del_addr(conn->get_addr());
