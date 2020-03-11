@@ -1,3 +1,6 @@
+#ifndef COMMON_LIB_H
+#define COMMON_LIB_H
+
 #include <iostream>
 #include <stdlib.h>
 #include <stdio.h>
@@ -19,3 +22,13 @@
 #include <vector>
 #include <set>
 #include <mutex>
+#include <chrono>
+
+uint64_t getSeconds();
+
+uint64_t getSeconds()
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::
+                  now().time_since_epoch()).count(); 
+}
+#endif // !COMMON_LIB_H

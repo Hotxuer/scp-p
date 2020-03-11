@@ -39,6 +39,7 @@ uint32_t ConnidManager::getConnID() {
 void ConnidManager::delConnID(uint32_t connID) {
     if (ConnID_Manager.find(connID) == ConnID_Manager.end()) {
         //print error
+        return;
     } else {
         ConnID_Manager.erase(connID);
     }

@@ -58,7 +58,8 @@ typedef struct TcpHeaderInfo headerinfo;
 
 
 struct scphead{
-    // type 0: ack, type 1: reset, type 2: data
+    // type 0: ack, type 1: reset, type 2: data, type 3: heart beat
+    // if type == 3, pktnum and ack is set to 0;
     uint32_t type:2,pktnum:15,ack:15;
     uint32_t connid;
 };

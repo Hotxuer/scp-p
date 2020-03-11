@@ -68,7 +68,7 @@ int main(int argc, char const *argv[])
         std::string time = "PacketNumber:" + std::to_string(i) + " time:" + std::to_string(getMicros());
         //std::cout << time.c_str() << " " << time.size() << std::endl;
         send(client_sockfd, time.c_str(), time.size(), 0);
-        std::this_thread::sleep_for(std::chrono::seconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     close(client_sockfd);

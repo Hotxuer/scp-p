@@ -1,6 +1,12 @@
 #include <chrono>
 #include <iostream>
 
+uint64_t getSeconds()
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::
+                  now().time_since_epoch()).count(); 
+}
+
 // Get time stamp in milliseconds.
 uint64_t getMillis()
 {
