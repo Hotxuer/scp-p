@@ -320,6 +320,10 @@ void packet_resend_thread(FakeConnection* fc, size_t bufnum){
 
 // add scpheader / tcpheader.
 size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
+    if(!is_establish) {
+        printf("not established .\n");
+        return 0;
+    }
     if (buffer == nullptr) {
         //send heart beat
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
@@ -329,10 +333,6 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         generate_scp_packet(heart_beat_buf + hdrlen,3,0,0,connection_id);
         uint32_t sendsz = sizeof(tcphead)+ sizeof(scphead);
         sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
-    }
-
-    if(!is_establish) {
-        printf("not established .\n");
         return 0;
     }
     // select a buffer.
