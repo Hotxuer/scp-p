@@ -22,7 +22,7 @@ unsigned short cksum(unsigned char* packet, int len){
 int generate_tcp_packet(unsigned char* buf, size_t & len,headerinfo info){
     
     //len = sizeof(iphead) + sizeof(tcphead);
-    len = sizeof(tcphead);
+    len += sizeof(tcphead);
     //if(info.type != 2) 
         //len -= 4; // no mss option
     //iphead* ip = (iphead*) buf;
@@ -42,7 +42,7 @@ int generate_tcp_packet(unsigned char* buf, size_t & len,headerinfo info){
     ip->ip_pro = IPPROTO_TCP;
     ip->ip_src = info.src_ip;
     ip->ip_dst = info.dest_ip;
-    ip->ip_sum = cksum(buf, 20);  //计算IP首部的校验和，必须在其他字段都赋值后再赋值该字段，赋值前�?
+    ip->ip_sum = cksum(buf, 20);  //计算IP首部的校验和，必须在其他字段都赋值后再赋值该字段，赋值前�?
 
     */
 
@@ -55,7 +55,7 @@ int generate_tcp_packet(unsigned char* buf, size_t & len,headerinfo info){
     if(info.type != 2){
         if(info.type == 0) tcp->tcp_flag = 0x02;  //SYN置位
         else tcp->tcp_flag = 0x12; //SYN和ACK置位
-        tcp->tcp_len = 5;  //发送SYN报文段时，设置TCP首部�?4字节(if mss option)
+        tcp->tcp_len = 5;  //发送SYN报文段时，设置TCP首部�?4字节(if mss option)
         //tcp->mss_option = 0x0204;
         //tcp->mss = 1460;
     }else{
@@ -93,6 +93,16 @@ int generate_scp_packet(unsigned char* buf,uint8_t type,uint16_t pktnum,uint16_t
     scp -> pktnum = pktnum;
     scp -> ack = ack;
     scp -> connid = conn_id;
+    return 0;
+}
+
+int generate_udp_packet(unsigned char* buf, uint16_t srcport , uint16_t destport,size_t & len,size_t payload_len){
+    len += sizeof(udphead);
+    udphead* udp = (udphead*) buf;
+    udp->udp_sport = srcport;
+    udp->udp_dport = destport;
+    udp->udp_len = payload_len + sizeof(udphead);
+    udp->udp_sum = 0;
     return 0;
 }
 #endif

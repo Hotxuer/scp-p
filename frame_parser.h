@@ -5,6 +5,8 @@
 #include "conn_manager.h"
 
 int reply_syn(addr_port src,uint32_t conn_id);
+
+
 // parse an ip packet
 // return -1 : error
 // return 0 : this function did nothing
@@ -15,15 +17,12 @@ int reply_syn(addr_port src,uint32_t conn_id);
 // return 5 : data--scp redundent ack
 // return 6 : data--legal ack
 // return 7 : data--data packet
-int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
+int parse_tcp_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
     iphead* ip = (iphead*) buf;
     tcphead* tcp = (tcphead*) (buf + sizeof(iphead));
-    
-    scphead* scp = (scphead*) (buf + sizeof(iphead) + sizeof(tcphead));
-
+    scphead* scp = (scphead*) (buf + sizeof(iphead) + sizeof(udphead) + sizeof(tcphead));
     addr_port srcaddr = {(in_addr_t)ip->ip_src,tcp->tcp_sport};
     //rmt_ip_port = srcaddr;
-
     conn_id = scp->connid;
     int scpst;
     if(tcp->tcp_flag == 0x02){ // SYN 报文
@@ -64,6 +63,7 @@ int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
         return 0;
     }
 }
+
 
 int reply_syn(addr_port src,uint32_t conn_id){
     int ret = 1;

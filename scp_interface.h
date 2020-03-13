@@ -110,12 +110,13 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
 
     uint32_t sleep_time = 10000,max_resend = 5;
 
-    usleep(sleep_time);
+    std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
+    //usleep(sleep_time);
 
     while(ConnidManager::local_conn_id == local_id && !ConnManager::get_conn(local_id)->is_established() && max_resend--){
         sendto(ConnManager::local_send_fd,tmp_send_buf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&server_addr,sizeof(server_addr));
         sleep_time *= 2;
-        usleep(sleep_time);
+        std::this_thread::sleep_for(std::chrono::microseconds(900));
     }
 
     local_id = ConnidManager::local_conn_id;

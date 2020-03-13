@@ -26,11 +26,15 @@ struct tcphead{      //TCP首部
     uint16_t tcp_win;
     uint16_t tcp_sum;
     uint16_t tcp_urp;
-    // add mss option when shake hand , deperacate
-    //uint16_t mss_option;
-    //uint16_t mss;
 };
 
+
+struct udphead{
+    uint16_t udp_sport;
+    uint16_t udp_dport;
+    uint16_t udp_len;
+    uint16_t udp_sum;
+}
 
 struct psdhead{ //TCP伪首�?
     unsigned int saddr; //源地址
