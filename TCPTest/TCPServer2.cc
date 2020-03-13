@@ -33,11 +33,11 @@ void handlerThread(int sockfd, int flag) {
         lock.lock();
         send(sockfd, last_send_packet.c_str(), last_send_packet.size(), 0);
         lock.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     while (1) {
         lock.lock();
-        std::cout << "do while" << std::endl;
+        //std::cout << "do while" << std::endl;
         if (count > flag || packetSendNumber == data_num) {
             //std::cout << last_send_packet << std::endl;
             // last_send_packet = packet;
