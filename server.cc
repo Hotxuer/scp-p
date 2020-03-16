@@ -18,10 +18,23 @@ void service_thread(bool isserver){
     int stat;size_t n;
     char recvbuf[4096];
     uint32_t this_conn_id;
+    addr_port src;
+    bool tcpenable = ConnManager::tcp_enable;
+    struct sockaddr_in fromAddr;
+    socklen_t fromAddrLen = sizeof(fromAddr);
     while(1){
-        n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
+        if(tcpenable){
+            n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
+            stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver,src);
+        }else{
+            n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,(struct sockaddr*)&fromAddr,&fromAddrLen);
+            src.sin = fromAddr.sin_addr.s_addr;
+            src.port = fromAddr.sin_port;
+            stat = parse_frame(recvbuf ,n,this_conn_id,isserver,src);
+        }
         //printf("recv from raw socket, len ,%d\n",n);
-        stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver);
+        
+        
         switch (stat){
             case 1:
                 printf("a request for exist connnection. \n");
@@ -60,15 +73,7 @@ void service_thread(bool isserver){
 
 int main(int argc,char** argv){
 
-    pktNum1 = pktNum2 = pktNum3 = 1000;
-    if (argc >= 2)
-        pktNum1 = atoi(argv[1]);
-    if (argc >= 3)
-        pktNum2 = atoi(argv[2]);
-    if (argc >= 4)
-        pktNum3 = atoi(argv[3]);
-
-    int ret = init_rawsocket();
+    int ret = init_rawsocket(false);
     if(ret) printf("init_rawsocket error.");
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
     //connect(htons(LOCAL_ADDR),htons(REMOTE_ADDR));

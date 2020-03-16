@@ -6,23 +6,11 @@
 
 int reply_syn(addr_port src,uint32_t conn_id);
 
-
-// parse an ip packet
-// return -1 : error
-// return 0 : this function did nothing
-// return 1 : a request for connect with exist connection
-// return 2 : a new connection established on server
-// return 3 : client recv a tcp pkt with SYN-ACK
-// return 4 : data--scp reset request
-// return 5 : data--scp redundent ack
-// return 6 : data--legal ack
-// return 7 : data--data packet
-// return 8 : heart beat packet
-int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
+int parse_tcp_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver,addr_port& srcaddr){
     iphead* ip = (iphead*) buf;
     tcphead* tcp = (tcphead*) (buf + sizeof(iphead));
     scphead* scp = (scphead*) (buf + sizeof(iphead) + sizeof(udphead) + sizeof(tcphead));
-    addr_port srcaddr = {(in_addr_t)ip->ip_src,tcp->tcp_sport};
+    srcaddr = {(in_addr_t)ip->ip_src,tcp->tcp_sport};
     //rmt_ip_port = srcaddr;
     conn_id = scp->connid;
     int scpst;
@@ -48,7 +36,7 @@ int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
 
     }else if(tcp->tcp_flag == 0x10){ //data 
         if(ConnManager::exist_conn(conn_id)){ // If there is a connection , push it to the connection.
-            size_t hdrlen = sizeof(iphead) + sizeof(tcphead);
+            size_t hdrlen = sizeof(iphead) + sizeof(tcphead) + sizeof(udphead);
             scpst = ConnManager::get_conn(conn_id)->on_pkt_recv(buf + hdrlen,len - hdrlen,srcaddr);
             //update tcp-para
             uint16_t needack = htonl((ntohl) (tcp->tcp_seq) + 1); 
@@ -62,6 +50,68 @@ int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver){
     }else{
         //其他可能性，暂不考虑
         return 0;
+    }
+}
+
+int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver,addr_port& srcaddr){
+    scphead* scp = (scphead*) buf;
+    conn_id = scp->connid;
+    uint16_t scp_pkt_num,scp_ack_num,scp_type;
+    scp_type = scp->type;
+    scp_pkt_num = scp->pktnum;
+    scp_ack_num = scp->ack;
+
+    int scpst;
+
+    if(scp_type != 1){ // not syn or fin
+        scpst = ConnManager::get_conn(conn_id)->on_pkt_recv(buf,len,srcaddr);
+        return 5 + scpst;
+    }
+
+    if(scp_pkt_num == 0x7fff && scp_ack_num == 0){ // syn
+        if(! isserver) return -1;
+        return reply_syn(srcaddr,conn_id);        
+    }else if(scp_pkt_num == 0 && scp_ack_num == 0x7fff){ //syn-ack
+        if(isserver) return -1;
+        uint32_t localid = ConnidManager::local_conn_id;
+        
+        if(localid != 0 && localid != conn_id && ConnManager::exist_conn(localid) ){
+            ConnManager::del_conn(localid);
+        }
+        if(localid != conn_id){
+            ConnManager::add_conn(conn_id,new FakeConnection(false,srcaddr));
+            ConnidManager::local_conn_id = conn_id;
+        }
+        ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
+        ConnManager::get_conn(conn_id)->establish_ok();
+        //ConnManager::get_conn(conn_id)->update_para(1,1);
+        return 3;        
+    }else if(scp_pkt_num == 0x7fff && scp_ack_num == 0x7fff){ // 3-shakehand from cli to ser
+
+    }else if(scp_pkt_num == 0 && scp_ack_num == 0){ // fin from server
+
+    }else{ // error
+        return -1;
+    }
+
+}
+
+// parse an ip packet
+// return -1 : error
+// return 0 : this function did nothing
+// return 1 : a request for connect with exist connection
+// return 2 : a new connection established on server
+// return 3 : client recv a tcp pkt with SYN-ACK
+// return 4 : data--scp reset request
+// return 5 : data--scp redundent ack
+// return 6 : data--legal ack
+// return 7 : data--data packet
+// return 8 : heart beat packet
+int parse_frame(char* buf, size_t len,uint32_t& conn_id, bool isserver,addr_port& srcaddr){
+    if(ConnManager::tcp_enable){
+        return parse_tcp_frame(buf,len,conn_id,isserver,srcaddr);
+    }else{
+        return parse_scp_frame(buf,len,conn_id,isserver,srcaddr);
     }
 }
 
@@ -86,9 +136,12 @@ int reply_syn(addr_port src,uint32_t conn_id){
     unsigned char ackbuf[40];
     headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,1};
     size_t hdrlen = 0;
-    generate_tcp_packet(ackbuf,hdrlen,h);
-    generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
-    generate_scp_packet(ackbuf + hdrlen,0,0,0,conn_id);
+
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet(ackbuf,hdrlen,h);
+        generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    }
+    generate_scp_packet(ackbuf + hdrlen,1,0,0x7fff,conn_id);
 
     sockaddr_in rmt_sock_addr;
     

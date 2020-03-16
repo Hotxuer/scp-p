@@ -40,6 +40,8 @@ public:
     static uint32_t get_connid(addr_port addr);
     static int clear_dead_conn();
     //static int local_connid; // client only
+
+    static bool tcp_enable;
 private:
     static std::map<uint32_t,FakeConnection*> conn;
     static struct sockaddr_in local_addr;
@@ -52,7 +54,7 @@ std::map<addr_port,uint32_t> ConnManager::addr_pool;
 struct sockaddr_in ConnManager::local_addr;
 int ConnManager::local_send_fd = 0;
 int ConnManager::local_recv_fd = 0;
-
+bool ConnManager::tcp_enable = false;
 
 void packet_resend_thread(FakeConnection* fc, size_t bufnum);
 
@@ -277,16 +279,19 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         return -1;
     }else if(scp->type == 2) { // data ,sendback_ack
         uint16_t pkt_seq = scp->pktnum;
-
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
         size_t hdrlen = 0; 
 
-        unsigned char ack_buf[30];
-        if(using_tcp)
+        unsigned char ack_buf[64];
+        
+        if(ConnManager::tcp_enable){
             generate_tcp_packet(ack_buf,hdrlen,h);
-        generate_udp_packet(ack_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+            generate_udp_packet(ack_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+        }
+
         generate_scp_packet(ack_buf + hdrlen,0,0,pkt_seq,connection_id);
-        uint32_t sendsz = sizeof(tcphead) + sizeof(udphead) +sizeof(scphead) ;
+        //uint32_t sendsz = sizeof(tcphead) + sizeof(udphead) +sizeof(scphead) ;
+        uint32_t sendsz = hdrlen + sizeof(scphead) ;
         sendto(ConnManager::local_send_fd,ack_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
         return 2;
     }else if(scp->type == 3) { //heart beat, send heart beat back
@@ -300,11 +305,15 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         size_t hdrlen = 0; 
 
         unsigned char heart_beat_buf[30];
-        if(using_tcp)
+        
+        if(ConnManager::tcp_enable){
             generate_tcp_packet(heart_beat_buf,hdrlen,h);
-        generate_udp_packet(heart_beat_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+            generate_udp_packet(heart_beat_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+        }
         generate_scp_packet(heart_beat_buf + hdrlen,3,0,0,connection_id);
-        uint32_t sendsz = sizeof(tcphead)+ sizeof(scphead);
+        
+        //uint32_t sendsz = sizeof(tcphead)+ sizeof(udphead) + sizeof(scphead);
+        uint32_t sendsz = sizeof(scphead) + hdrlen ;
         sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
         return 3;
     }
@@ -340,11 +349,14 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
         size_t hdrlen = 0; 
         unsigned char heart_beat_buf[30];
-        if(using_tcp)
+        if(ConnManager::tcp_enable){
             generate_tcp_packet(heart_beat_buf,hdrlen,h);
-        generate_udp_packet(heart_beat_buf+hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+            generate_udp_packet(heart_beat_buf+hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+        }
+        
         generate_scp_packet(heart_beat_buf + hdrlen,3,0,0,connection_id);
-        uint32_t sendsz = sizeof(tcphead) + sizeof(udphead) +sizeof(scphead);
+        
+        uint32_t sendsz = hdrlen + sizeof(scphead);
         sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
         return 0;
     }
@@ -355,7 +367,12 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         return 0;
     }
     // select a buffer and copy the packet to the buffer
-    uint16_t tot_len =  sizeof(scphead) + sizeof(tcphead) + sizeof(udphead) + len;
+    uint16_t tot_len;
+    if(ConnManager::tcp_enable){
+        tot_len =  sizeof(scphead) + sizeof(tcphead) + sizeof(udphead) + len;
+    }else{
+        tot_len = sizeof(scphead) + len;
+    }
     memcpy(buf[bufnum] + tot_len - len,buffer,len);
     buflen[bufnum] = tot_len;
 
@@ -363,11 +380,12 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     //uint16_t iplen = (uint16_t) (len+sizeof(scphead));
     headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
     size_t hdrlen = 0;
-    if(using_tcp)
-        generate_tcp_packet((unsigned char*)buf[bufnum], hdrlen , h);
-    myseq += sizeof(scphead) + len;//TCP seq
     uint16_t tbufnum = (uint16_t) bufnum;
-    generate_udp_packet((unsigned char*)buf[bufnum] + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead) + len);
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet((unsigned char*)buf[bufnum], hdrlen , h);
+        myseq += sizeof(scphead) + len;//TCP seq
+        generate_udp_packet((unsigned char*)buf[bufnum] + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead) + len);
+    }
     generate_scp_packet((unsigned char*)buf[bufnum] + hdrlen,2,tbufnum,0,connection_id);
     size_t sendbytes = 0;
 
@@ -376,7 +394,7 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
     //}
 #else
-    printf("before send");    
+    printf("before send\n");    
 
     //if(bufnum % 10)
     for(int i = 0;i < 2; i++){

@@ -65,14 +65,28 @@ struct event_args{
 
 void handle_event(evutil_socket_t listener, short event, void *arg){
     event_args* ev_args = (event_args*) arg;
-    size_t n = recvfrom(listener,ev_args->recvbuf,2048,0,NULL,NULL);
-    //addr_port rmt;
-    //sockaddr_in rmt_sock_addr;
+    size_t n;
+
+    addr_port src;
+    bool tcpenable = ConnManager::tcp_enable; 
+
+    struct sockaddr_in fromAddr;
+    socklen_t fromAddrLen = sizeof(fromAddr);
     uint32_t this_conn_id;
     int stat;
-    //headerinfo h;
 
-    stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,ev_args->isserver);
+    if(ConnManager::tcp_enable){
+        n = recvfrom(listener,ev_args->recvbuf,4096,0,NULL,NULL);
+        stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,ev_args->isserver,src);
+    }else{
+        n = recvfrom(listener,ev_args->recvbuf,4096,0,(struct sockaddr*)&fromAddr,&fromAddrLen);
+        src.sin = fromAddr.sin_addr.s_addr;
+        src.port = fromAddr.sin_port;
+        stat = parse_frame(ev_args->recvbuf ,n,this_conn_id,ev_args->isserver,src);        
+    }
+
+    //headerinfo h;
+    //stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,ev_args->isserver);
     switch (stat){
         case 1:
             printf("a request for exist connnection. \n");

@@ -10,6 +10,11 @@ int scp_bind(in_addr_t localip , uint16_t port){
     ConnManager::set_local_addr(local_addr);
 
     int sendfd = ConnManager::local_send_fd;
+
+    if(!ConnManager::tcp_enable){
+        if(sendfd != 0) return bind(sendfd,(sockaddr*) &local_addr,sizeof(local_addr));
+        else return -1;
+    }
     // tcpdump -dd 'tcp[2:2] == 17001 and tcp[tcpflags] & tcp-rst == 0'
     struct sock_filter my_bpf_code[] = {
         { 0x28, 0, 0, 0x0000000c },
@@ -45,40 +50,54 @@ int scp_bind(in_addr_t localip , uint16_t port){
 }
 
 
-// init a raw socket
-int init_rawsocket(){
+int init_rawsocket(bool tcpenable){
+    ConnManager::tcp_enable = tcpenable;
     if(ConnManager::local_send_fd != 0 || ConnManager::local_send_fd != 0){
         // This method should only be active once.
         return -1;
     }
-    // initial recv_fd,收到的为以太网帧，帧头长度为18字节
-    int recv_rawsockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if (recv_rawsockfd < 0 ) {
-        //perror("socket fail\n");
-        printf("recv socket initial failed\n");
-        return -1;
-    }else{
-        ConnManager::local_recv_fd = recv_rawsockfd;
-    }
+    if(tcpenable){ // tcp usermode initial
+        // initial recv_fd,收到的为以太网帧，帧头长度为18字节
+        int recv_rawsockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+        if (recv_rawsockfd < 0 ) {
+            //perror("socket fail\n");
+            printf("recv socket initial failed\n");
+            return -1;
+        }else{
+            ConnManager::local_recv_fd = recv_rawsockfd;
+        }
 
-    //initial send_fd
-    int send_rawsockfd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-    if(send_rawsockfd < 0){
-        printf("send socket initial failed\n");
-        return -1;
+        //initial send_fd
+        int send_rawsockfd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        if(send_rawsockfd < 0){
+            printf("send socket initial failed\n");
+            return -1;
+        }else{
+            ConnManager::local_send_fd = send_rawsockfd;
+        }   
+        /*
+        int one = 1;
+        
+        if(setsockopt(send_rawsockfd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0){   //定义套接字不添加IP首部，代码中手工添加
+            printf("setsockopt failed!\n");
+            return -1;
+        }
+        */     
     }else{
-        ConnManager::local_send_fd = send_rawsockfd;
+        int udp_sockfd = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
+        if(udp_sockfd < 0){
+            printf("udp socket initial failed\n");
+            return -1;
+        }
+        ConnManager::local_recv_fd = udp_sockfd;
+        ConnManager::local_send_fd = udp_sockfd;
     }
-    /*
-    int one = 1;
-    
-    if(setsockopt(send_rawsockfd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0){   //定义套接字不添加IP首部，代码中手工添加
-        printf("setsockopt failed!\n");
-        return -1;
-    }
-    */
-
     return 0;
+}
+
+// init a raw socket
+int init_rawsocket(){
+    return init_rawsocket(true);
 }
 
 
@@ -100,13 +119,15 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
 
     // send syn
     headerinfo h= {remote_ip,ConnManager::get_local_port(),remote_ad_pt.port,0,0,0};
-    size_t hdrlen;
+    size_t hdrlen = 0;
     unsigned char tmp_send_buf[64];
-    generate_tcp_packet(tmp_send_buf,hdrlen,h);
-    generate_udp_packet(tmp_send_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet(tmp_send_buf,hdrlen,h);
+        generate_udp_packet(tmp_send_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    }
     //generate_udp_packet(tmp_send_buf + hdrlen,)
-    generate_scp_packet(tmp_send_buf+hdrlen,2,0,0,ConnidManager::local_conn_id);
-    size_t sendsz = sizeof(tcphead)+sizeof(udphead)+sizeof(scphead);
+    generate_scp_packet(tmp_send_buf+hdrlen,1,0x7fff,0,ConnidManager::local_conn_id);
+    size_t sendsz = hdrlen + sizeof(scphead);
     sendto(ConnManager::local_send_fd,tmp_send_buf,sendsz,0,(struct sockaddr *)&server_addr,sizeof(server_addr));
 
     printf("send syn ok\n"); 
@@ -116,20 +137,21 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
     //usleep(sleep_time);
 
-    while(ConnidManager::local_conn_id == local_id && !ConnManager::get_conn(local_id)->is_established() && max_resend--){
-        sendto(ConnManager::local_send_fd,tmp_send_buf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&server_addr,sizeof(server_addr));
+    while((ConnidManager::local_conn_id == 0 || !ConnManager::get_conn(ConnidManager::local_conn_id)->is_established()) && max_resend--){
+        sendto(ConnManager::local_send_fd,tmp_send_buf,sendsz,0,(struct sockaddr *)&server_addr,sizeof(server_addr));
         sleep_time *= 2;
         std::this_thread::sleep_for(std::chrono::microseconds(900));
     }
 
     local_id = ConnidManager::local_conn_id;
-    if(ConnManager::get_conn(local_id)->is_established()){
+    if(local_id && ConnManager::get_conn(local_id)->is_established()){
         return 1;
     }else{
         return 0;
     }
     //return 0;
 }
+
 
 
 size_t scp_send(const char* buf,size_t len,FakeConnection* fc){
