@@ -15,7 +15,7 @@ void service_thread(bool isserver){
     uint32_t this_conn_id;
     while(1){
         n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
-        //printf("recv from raw socket, len ,%d\n",n);
+        printf("recv from raw socket, len ,%d\n",n);
         stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver);
         switch (stat){
             case 1:

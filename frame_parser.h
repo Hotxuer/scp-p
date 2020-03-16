@@ -85,9 +85,10 @@ int reply_syn(addr_port src,uint32_t conn_id){
 
     unsigned char ackbuf[40];
     headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,1};
-    size_t hdrlen;;
+    size_t hdrlen = 0;
     generate_tcp_packet(ackbuf,hdrlen,h);
-    generate_scp_packet(ackbuf+hdrlen,0,0,0,conn_id);
+    generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    generate_scp_packet(ackbuf + hdrlen,0,0,0,conn_id);
 
     sockaddr_in rmt_sock_addr;
     

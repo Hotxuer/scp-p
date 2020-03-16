@@ -54,7 +54,10 @@ int ConnManager::local_send_fd = 0;
 int ConnManager::local_recv_fd = 0;
 
 
+void packet_resend_thread(FakeConnection* fc, size_t bufnum);
+
 class FakeConnection{
+    friend void packet_resend_thread(FakeConnection* fc, size_t bufnum);
 public:
     FakeConnection() = default;
     //FakeConnection(bool isser):isserver(isser){};
@@ -64,6 +67,7 @@ public:
         remote_sin.sin_port = addr_pt.port;
         pkt_in_buf = 0;
         using_tcp = 1;
+        now_rtt = 20000;
         last_active_time = getSeconds();
     };
 
@@ -92,7 +96,7 @@ public:
 private:
     // -- protocal options --
     bool using_tcp;
-    uint32_t sendtime[BUF_NUM];
+    uint64_t sendtime[BUF_NUM];
     uint32_t now_rtt;
 
     // -- tcp info --
@@ -259,7 +263,9 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         while(!lock_buffer(pkt_ack)){
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        
+        uint64_t this_rtt = getMicrosDiff(sendtime[pkt_ack]);
+        // if(now_rtt == 0) now_rtt = this_rtt;
+        now_rtt = now_rtt*0.8 + this_rtt*0.2;
         //printf("release buffer.\n");
         buf_used.reset(pkt_ack);
         buflen[pkt_ack] = 0;
@@ -291,10 +297,12 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         
         //if client recv heart beat, echo the packet
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
-        size_t hdrlen; 
+        size_t hdrlen = 0; 
 
         unsigned char heart_beat_buf[30];
-        generate_tcp_packet(heart_beat_buf,hdrlen,h);
+        if(using_tcp)
+            generate_tcp_packet(heart_beat_buf,hdrlen,h);
+        generate_udp_packet(heart_beat_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
         generate_scp_packet(heart_beat_buf + hdrlen,3,0,0,connection_id);
         uint32_t sendsz = sizeof(tcphead)+ sizeof(scphead);
         sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
@@ -305,9 +313,10 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 // resend logic may need to change.
 void packet_resend_thread(FakeConnection* fc, size_t bufnum){
     int maxresend = 5;
+    uint64_t resend_wait = fc->now_rtt*2;
     while(maxresend--){
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        
+        std::this_thread::sleep_for(std::chrono::milliseconds(resend_wait));
+        resend_wait *= 2;
         if(!fc->lock_buffer(bufnum)){
             break;
         }
@@ -329,11 +338,13 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     if (buffer == nullptr) {
         //send heart beat
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
-        size_t hdrlen; 
+        size_t hdrlen = 0; 
         unsigned char heart_beat_buf[30];
-        generate_tcp_packet(heart_beat_buf,hdrlen,h);
+        if(using_tcp)
+            generate_tcp_packet(heart_beat_buf,hdrlen,h);
+        generate_udp_packet(heart_beat_buf+hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
         generate_scp_packet(heart_beat_buf + hdrlen,3,0,0,connection_id);
-        uint32_t sendsz = sizeof(tcphead)+ sizeof(scphead);
+        uint32_t sendsz = sizeof(tcphead) + sizeof(udphead) +sizeof(scphead);
         sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
         return 0;
     }
@@ -356,7 +367,7 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         generate_tcp_packet((unsigned char*)buf[bufnum], hdrlen , h);
     myseq += sizeof(scphead) + len;//TCP seq
     uint16_t tbufnum = (uint16_t) bufnum;
-    generate_udp_packet(ack_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead) + len);
+    generate_udp_packet((unsigned char*)buf[bufnum] + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead) + len);
     generate_scp_packet((unsigned char*)buf[bufnum] + hdrlen,2,tbufnum,0,connection_id);
     size_t sendbytes = 0;
 
@@ -365,13 +376,13 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
     //}
 #else
-    //printf("before send");    
+    printf("before send");    
 
-    if(bufnum % 10)
+    //if(bufnum % 10)
     for(int i = 0;i < 2; i++){
         sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
     } 
-    
+    sendtime[bufnum] = getMicros();
     //printf("after send.\n");
     std::thread resend_thread(packet_resend_thread,this,bufnum);
     resend_thread.detach();

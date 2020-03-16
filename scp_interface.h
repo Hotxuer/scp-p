@@ -101,10 +101,13 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     // send syn
     headerinfo h= {remote_ip,ConnManager::get_local_port(),remote_ad_pt.port,0,0,0};
     size_t hdrlen;
-    unsigned char tmp_send_buf[45];
+    unsigned char tmp_send_buf[64];
     generate_tcp_packet(tmp_send_buf,hdrlen,h);
+    generate_udp_packet(tmp_send_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    //generate_udp_packet(tmp_send_buf + hdrlen,)
     generate_scp_packet(tmp_send_buf+hdrlen,2,0,0,ConnidManager::local_conn_id);
-    sendto(ConnManager::local_send_fd,tmp_send_buf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&server_addr,sizeof(server_addr));
+    size_t sendsz = sizeof(tcphead)+sizeof(udphead)+sizeof(scphead);
+    sendto(ConnManager::local_send_fd,tmp_send_buf,sendsz,0,(struct sockaddr *)&server_addr,sizeof(server_addr));
 
     printf("send syn ok\n"); 
 
