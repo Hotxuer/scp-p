@@ -13,12 +13,25 @@
 void service_thread(bool isserver){
     int stat;size_t n;
     char recvbuf[4096];
-    addr_port rmt;
+    //addr_port rmt;
     uint32_t this_conn_id;
-    int scp_stat;
+
+    //int scp_stat;
+    addr_port src;
+    bool tcpenable = ConnManager::tcp_enable;
+    struct sockaddr_in fromAddr;
+    socklen_t fromAddrLen = sizeof(fromAddr);
+
     while(1){
-        n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
-        stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver);
+        if(tcpenable){
+            n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
+            stat = parse_frame(recvbuf + 14,n-14,this_conn_id,src);
+        }else{
+            n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,(struct sockaddr*)&fromAddr,&fromAddrLen);
+            src.sin = fromAddr.sin_addr.s_addr;
+            src.port = fromAddr.sin_port;
+            stat = parse_frame(recvbuf ,n,this_conn_id,src);
+        }
         switch (stat){
             case 1:
             case 2:
@@ -55,7 +68,7 @@ void service_thread(bool isserver){
 // tcpdump -dd 'tcp[2:2] == 17000 and tcp[tcpflags] & tcp-rst == 0'
 
 int main(int argc,char** argv){
-    int ret = init_rawsocket();
+    int ret = init_rawsocket(false, false);
     if(ret) printf("init_rawsocket error.");
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
     std::thread ser(service_thread,false);

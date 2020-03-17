@@ -15,7 +15,7 @@ void service_thread(bool isserver){
     uint32_t this_conn_id;
     while(1){
         n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
-        //printf("recv from raw socket, len ,%d\n",n);
+        printf("recv from raw socket, len ,%d\n",n);
         stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver);
         switch (stat){
             case 1:
@@ -57,15 +57,16 @@ void send_thread(){
     for(int i = 0;i < pktNum1 ; i++){
         std::string packet = "PacketNumber:" + std::to_string(count++) + " sendTime:" + std::to_string(getMicros()); 
         scp_send(packet.c_str(),packet.size(),v[0]);
-        usleep(prd);
+        std::this_thread::sleep_for(std::chrono::microseconds(prd));
     }
     printf("finish test1,test2 will start in 5 seconds.\n");
-    sleep(5);
+    std::this_thread::sleep_for(std::chrono::seconds(5));
     count = 0;
     for(int i = 0;i < pktNum2; i++){
         std::string packet = "PacketNumber:" + std::to_string(count++) + " sendTime:" + std::to_string(getMicros()); 
         scp_send(packet.c_str(),packet.size(),v[0]);
-        usleep(prd);        
+        std::this_thread::sleep_for(std::chrono::microseconds(prd));
+        //usleep(prd);        
     }
     printf("finish test2,test3 will start in 5 seconds.\n");
     sleep(5);
@@ -73,7 +74,8 @@ void send_thread(){
     for(int i = 0;i < pktNum3; i++){
         std::string packet = "PacketNumber:" + std::to_string(count++) + " sendTime:" + std::to_string(getMicros()); 
         scp_send(packet.c_str(),packet.size(),v[0]);
-        usleep(prd);          
+        std::this_thread::sleep_for(std::chrono::microseconds(prd));
+       // usleep(prd);          
     }
 }
 
@@ -94,8 +96,8 @@ int main(int argc, char const *argv[])
     //connect(htons(LOCAL_ADDR),htons(REMOTE_ADDR));
     std::thread ser(service_thread,true);
     ser.detach();
-
-    sleep(20);// wait for the connection;
+    std::this_thread::sleep_for(std::chrono::seconds(20));
+   // sleep(20);// wait for the connection;
 
     std::thread sendthread(send_thread);
     sendthread.join();

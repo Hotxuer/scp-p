@@ -42,7 +42,7 @@ void rst_thread(int mode){
         if(ret == 0){
             printf("connect to server failed.\n");
         }
-        sleep(5);
+        sleep(3);
         ret = scp_connect(inet_addr(REMOTE_ADDR),17001);
         if(ret == 0){
             printf("connect to server failed.\n");
@@ -60,6 +60,7 @@ void service_thread(bool isserver){
     testData.clear();
     while(1){
         n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
+        uint64_t recvTime = getMicros();
         stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver);
         switch (stat){
             case 1:
@@ -90,7 +91,7 @@ void service_thread(bool isserver){
         if(stat == 7){
             std::string data = std::string(recvbuf + 62,n - 62);
             if(testData.count(data) == 0){
-                testData[data] = getMicros();
+                testData[data] = recvTime;
                 recv_packets++;
             }
             if(recv_packets == pktNum1){
