@@ -25,12 +25,12 @@ void service_thread(bool isserver){
     while(1){
         if(tcpenable){
             n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
-            stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver,src);
+            stat = parse_frame(recvbuf + 14,n-14,this_conn_id,src);
         }else{
             n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,(struct sockaddr*)&fromAddr,&fromAddrLen);
             src.sin = fromAddr.sin_addr.s_addr;
             src.port = fromAddr.sin_port;
-            stat = parse_frame(recvbuf ,n,this_conn_id,isserver,src);
+            stat = parse_frame(recvbuf ,n,this_conn_id,src);
         }
         //printf("recv from raw socket, len ,%d\n",n);
         
@@ -73,7 +73,7 @@ void service_thread(bool isserver){
 
 int main(int argc,char** argv){
 
-    int ret = init_rawsocket(false);
+    int ret = init_rawsocket(false, true);
     if(ret) printf("init_rawsocket error.");
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
     //connect(htons(LOCAL_ADDR),htons(REMOTE_ADDR));

@@ -50,9 +50,10 @@ int scp_bind(in_addr_t localip , uint16_t port){
 }
 
 
-int init_rawsocket(bool tcpenable){
+int init_rawsocket(bool tcpenable, bool isserver){
+    ConnManager::isserver = isserver;
     ConnManager::tcp_enable = tcpenable;
-    if(ConnManager::local_send_fd != 0 || ConnManager::local_send_fd != 0){
+    if(ConnManager::local_send_fd != 0 || ConnManager::local_recv_fd != 0){
         // This method should only be active once.
         return -1;
     }
@@ -92,12 +93,16 @@ int init_rawsocket(bool tcpenable){
         ConnManager::local_recv_fd = udp_sockfd;
         ConnManager::local_send_fd = udp_sockfd;
     }
+
+    std::thread thr(ConnManager::resend_and_clear);
+    thr.detach();
+
     return 0;
 }
 
 // init a raw socket
-int init_rawsocket(){
-    return init_rawsocket(true);
+int init_rawsocket(bool isserver){
+    return init_rawsocket(true, isserver);
 }
 
 
@@ -140,7 +145,7 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     while((ConnidManager::local_conn_id == 0 || !ConnManager::get_conn(ConnidManager::local_conn_id)->is_established()) && max_resend--){
         sendto(ConnManager::local_send_fd,tmp_send_buf,sendsz,0,(struct sockaddr *)&server_addr,sizeof(server_addr));
         sleep_time *= 2;
-        std::this_thread::sleep_for(std::chrono::microseconds(900));
+        std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
     }
 
     local_id = ConnidManager::local_conn_id;
@@ -158,4 +163,21 @@ size_t scp_send(const char* buf,size_t len,FakeConnection* fc){
     //addr_port ta = {rmtaddr,htons(17001)};
     if(!fc) return 0;
     return fc->pkt_send(buf,len);
+}
+
+int scp_close() {
+    //server不调用
+    if (ConnManager::isserver)
+        return -1;
+    std::vector<FakeConnection*> conns = ConnManager::get_all_connections();
+    if (conns.size() == 0)
+        return -1;
+    close(ConnManager::local_send_fd);
+    if (ConnManager::tcp_enable)
+        close(ConnManager::local_recv_fd);
+    ConnManager::del_addr(conns[0]->get_addr());
+    ConnManager::del_conn(conns[0]->get_conn_id());
+    ConnManager::local_recv_fd = ConnManager::local_send_fd = 0;
+    ConnManager::min_rtt = 0;
+    return 0;
 }

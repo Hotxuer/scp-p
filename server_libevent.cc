@@ -13,10 +13,11 @@
 
 
 int init_rawsocket(struct sock_filter* bpf_code, size_t code_items ){
-    if(ConnManager::local_send_fd != 0 || ConnManager::local_send_fd != 0){
+    if(ConnManager::local_send_fd != 0 || ConnManager::local_recv_fd != 0){
         // This method should only be active once.
         return -1;
     }
+    ConnManager::isserver = true;
     struct sock_fprog filter;
 
     //filter.len = sizeof(bpf_code)/sizeof(struct sock_filter); 
@@ -77,12 +78,12 @@ void handle_event(evutil_socket_t listener, short event, void *arg){
 
     if(ConnManager::tcp_enable){
         n = recvfrom(listener,ev_args->recvbuf,4096,0,NULL,NULL);
-        stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,ev_args->isserver,src);
+        stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,src);
     }else{
         n = recvfrom(listener,ev_args->recvbuf,4096,0,(struct sockaddr*)&fromAddr,&fromAddrLen);
         src.sin = fromAddr.sin_addr.s_addr;
         src.port = fromAddr.sin_port;
-        stat = parse_frame(ev_args->recvbuf ,n,this_conn_id,ev_args->isserver,src);        
+        stat = parse_frame(ev_args->recvbuf ,n,this_conn_id,src);        
     }
 
     //headerinfo h;

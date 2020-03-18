@@ -1,23 +1,34 @@
-#include "../TCPTest/getTime.cc"
 #include <thread>
 #include "../scp_interface.h"
 #define LOCAL_PORT_USED 17001
-//#define REMOTE_PORT_USED 17000
+#define REMOTE_PORT_USED 17000
 
 #define LOCAL_ADDR "202.120.38.131"
 #define REMOTE_ADDR "202.120.38.100"
 
 int pktNum1, pktNum2, pktNum3;
 
-void service_thread(bool isserver){
+void service_thread(){
     int stat;size_t n;
     char recvbuf[4096];
     uint32_t this_conn_id;
-    while(1){
-        n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
-        printf("recv from raw socket, len ,%d\n",n);
-        stat = parse_frame(recvbuf + 14,n-14,this_conn_id,isserver);
+    bool tcpenable = ConnManager::tcp_enable;
+    addr_port src;
+    struct sockaddr_in fromAddr;
+    socklen_t fromAddrLen = sizeof(fromAddr);
+    while(ConnManager::local_recv_fd){
+        if(tcpenable){
+            n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
+            stat = parse_frame(recvbuf + 14,n-14,this_conn_id,src);
+        }else{
+            n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,(struct sockaddr*)&fromAddr,&fromAddrLen);
+            src.sin = fromAddr.sin_addr.s_addr;
+            src.port = fromAddr.sin_port;
+            stat = parse_frame(recvbuf ,n,this_conn_id,src);
+        }
         switch (stat){
+            case 0:
+                printf("recv a data pkt when not established\n");
             case 1:
                 printf("a request for exist connnection. \n");
             case 2:
@@ -27,7 +38,7 @@ void service_thread(bool isserver){
                 printf("recv a back SYN-ACK from server(not in the server).\n");
                 break;
             case 4:
-                printf("recv a reset request.\n");
+                printf("server recv a pkt with reply-syn-ack.\n");
                 break;
             case 5:
                 printf("recv a scp redundent ack.\n");
@@ -38,6 +49,10 @@ void service_thread(bool isserver){
             case 7:
                 printf("recv a scp data packet.\n");
                 break;
+            case 8:
+                printf("recv heart beat packet.\n");
+            case 9:
+                printf("recv close packet.\n");
             case -1:
                 printf("recv a illegal frame.\n");
                 break;
@@ -77,6 +92,7 @@ void send_thread(){
         std::this_thread::sleep_for(std::chrono::microseconds(prd));
        // usleep(prd);          
     }
+    sleep(300);
 }
 
 
@@ -90,18 +106,18 @@ int main(int argc, char const *argv[])
     if (argc >= 4)
         pktNum3 = atoi(argv[3]);
 
-    int ret = init_rawsocket();
+    int ret = init_rawsocket(false, true);
     if(ret) printf("init_rawsocket error.");
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
     //connect(htons(LOCAL_ADDR),htons(REMOTE_ADDR));
-    std::thread ser(service_thread,true);
+    std::thread ser(service_thread);
     ser.detach();
     std::this_thread::sleep_for(std::chrono::seconds(20));
    // sleep(20);// wait for the connection;
 
     std::thread sendthread(send_thread);
     sendthread.join();
-
+    sleep(1000);
     //close server 
     return 0;
 }
