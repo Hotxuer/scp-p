@@ -4,7 +4,7 @@
 #include "header_info.h"
 #include "conn_manager.h"
 
-int reply_syn(addr_port src,uint32_t conn_id);
+int reply_syn(addr_port src,uint32_t& conn_id);
 int reply_syn_ack(addr_port src, uint32_t conn_id);
 void wait_reply_syn_ack(addr_port src, uint32_t conn_id);
 int parse_tcp_frame(char* buf, size_t len,uint32_t& conn_id,addr_port& srcaddr);
@@ -82,7 +82,7 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
         if (ConnManager::get_conn(conn_id)->is_established()) {
             scpst = ConnManager::get_conn(conn_id)->on_pkt_recv(buf,len,srcaddr);
         } else {
-            reply_syn(srcaddr, scp->connid);
+            //reply_syn(srcaddr, scp->connid);
             scpst = -5;
         }
         return 5 + scpst;
@@ -90,11 +90,12 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
 
     if(scp_pkt_num == 0x7fff && scp_ack_num == 0){ // syn
         if(! ConnManager::isserver) return -1;
+        scpst = reply_syn(srcaddr,conn_id);
         ConnManager::get_conn(conn_id)->on_pkt_recv(buf,len,srcaddr);
-        return reply_syn(srcaddr,conn_id);        
+        return scpst;        
     }else if(scp_pkt_num == 0 && scp_ack_num == 0x7fff){ //syn-ack
         if(ConnManager::isserver) return -1;
-        //client端收到二次握手报文
+        //client端收到二次握手报�?
         uint32_t localid = ConnidManager::local_conn_id;
         
         if(localid != 0 && localid != conn_id && ConnManager::exist_conn(localid) ){
@@ -122,7 +123,7 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
             ConnManager::del_conn(conn->get_conn_id());
         }
         // } else {
-        //     //对于client端收到应答，关闭一切东西
+        //     //对于client端收到应答，关闭一切东�?
         //     //若close报文丢弃，则让清理dead_conn自动清理即可
         //     close(ConnManager::local_send_fd);
         //     if (ConnManager::tcp_enable)
@@ -218,7 +219,7 @@ int reply_syn_ack(addr_port src, uint32_t conn_id) {
 //     return 0;  
 // }
 
-int reply_syn(addr_port src,uint32_t conn_id){
+int reply_syn(addr_port src,uint32_t& conn_id){
     int ret = 1;
     if(ConnManager::exist_addr(src)){
         printf("exist address.\n");

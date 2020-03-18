@@ -93,6 +93,10 @@ int init_rawsocket(bool tcpenable, bool isserver){
         ConnManager::local_recv_fd = udp_sockfd;
         ConnManager::local_send_fd = udp_sockfd;
     }
+
+    std::thread thr(ConnManager::resend_and_clear);
+    thr.detach();
+
     return 0;
 }
 
@@ -133,7 +137,7 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
 
     printf("send syn ok\n"); 
 
-    uint32_t sleep_time = 10000,max_resend = 5;
+    uint32_t sleep_time = 20000,max_resend = 5;
 
     std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
     //usleep(sleep_time);
@@ -162,8 +166,7 @@ size_t scp_send(const char* buf,size_t len,FakeConnection* fc){
 }
 
 int scp_close() {
-    //server不调用
-    if (ConnManager::isserver)
+    //server不调�?    if (ConnManager::isserver)
         return -1;
     std::vector<FakeConnection*> conns = ConnManager::get_all_connections();
     if (conns.size() == 0)
@@ -174,5 +177,6 @@ int scp_close() {
     ConnManager::del_addr(conns[0]->get_addr());
     ConnManager::del_conn(conns[0]->get_conn_id());
     ConnManager::local_recv_fd = ConnManager::local_send_fd = 0;
+    ConnManager::min_rtt = 0;
     return 0;
 }

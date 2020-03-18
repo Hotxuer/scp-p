@@ -50,7 +50,7 @@ inline uint64_t getMicros()
 }
 
 uint64_t getMillsDiff(uint64_t past) {
-    uint64_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::
+    uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::
                   now().time_since_epoch()).count();
     return now - past;
 }

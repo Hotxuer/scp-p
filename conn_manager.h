@@ -1,7 +1,7 @@
 #ifndef CONN_MNG
 #define CONN_MNG
 #include "packet_generator.h"
-#define BUF_SZ 2048
+#define BUF_SZ 1400
 #define BUF_NUM 1024
 #include "conn_id_manager.h"
 
@@ -38,7 +38,8 @@ public:
     static bool add_addr(addr_port addr ,uint32_t connid);
     static bool del_addr(addr_port addr);
     static uint32_t get_connid(addr_port addr);
-    static int clear_dead_conn();
+    static void resend_and_clear();
+    static uint64_t min_rtt;
     //static int local_connid; // client only
     static bool isserver;
 
@@ -57,11 +58,12 @@ int ConnManager::local_send_fd = 0;
 int ConnManager::local_recv_fd = 0;
 bool ConnManager::tcp_enable = false;
 bool ConnManager::isserver = true;
+uint64_t ConnManager::min_rtt = 20;
 
-void packet_resend_thread(FakeConnection* fc, size_t bufnum);
+//void packet_resend_thread(FakeConnection* fc, size_t bufnum);
 
 class FakeConnection{
-    friend void packet_resend_thread(FakeConnection* fc, size_t bufnum);
+    //friend void packet_resend_thread(FakeConnection* fc, size_t bufnum);
 public:
     FakeConnection() = default;
     //FakeConnection(bool isser):isserver(isser){};
@@ -71,8 +73,8 @@ public:
         remote_sin.sin_port = addr_pt.port;
         pkt_in_buf = 0;
         using_tcp = 1;
-        now_rtt = 20000;
-        last_active_time = getSeconds();
+        now_rtt = 20;
+        last_active_time = getMillis();
     };
 
     int on_pkt_recv(void* buf,size_t len,addr_port srcaddr);
@@ -101,7 +103,12 @@ private:
     // -- protocal options --
     bool using_tcp;
     uint64_t sendtime[BUF_NUM];
-    uint32_t now_rtt;
+
+    std::mutex resend_lock;
+    std::unordered_map<int, uint64_t> resend_map;
+    // uint64_t nextSendtime[BUF_NUM]; 
+
+    uint64_t now_rtt;
 
     // -- tcp info --
     uint32_t connection_id;
@@ -125,6 +132,8 @@ private:
 
     // a lock used for retransmit
     std::bitset<BUF_NUM> buf_lock;
+
+    friend class ConnManager;
 };
 
 
@@ -206,22 +215,50 @@ uint32_t ConnManager::get_connid(addr_port addr){
     }
 }
 
-int ConnManager::clear_dead_conn() {
-    std::vector<FakeConnection*> conns = get_all_connections();
-    uint64_t now = getSeconds();    
-    
-    for (FakeConnection *conn : conns) {
-        uint64_t active = conn->get_last_acitve_time();
-        int gap = now > active ? now - active : 0;
-        //60åˆ†é’Ÿæ²¡æœ‰activeåˆ™åˆ¤å®šä¸ºdead connectionï¼Œåšæ¸…ç†
-        if (gap > 3600) {
-            del_addr(conn->get_addr());
-            del_conn(conn->get_conn_id());
-        } else if (gap > 300)
-        {
-            conn->pkt_send(nullptr, 0);
+//µ±initµÄÊ±ºò¾Í´´½¨Ïß³Ì£¬Ã¿¸ômin_rttÖ´ÐÐ
+void ConnManager::resend_and_clear() {
+    while (true) {
+        //closeµÄÊ±ºò»á°Ñmin_rttÉèÖÃÎª0
+        if (!min_rtt)
+            return;
+       // printf("resend and clear!\n");
+        //Ã¿¸ôÒ»¸ömin_rttÔËÐÐÒ»´Î£¬ÖØ´«µÄÊ±¼ä²»»áÄÇÃ´×¼È·£¬µ«ÊÇ¿ÉÒÔ¼õÉÙÏß³ÌµÄ´´½¨ºÍÇÐ»»¿ªÏú
+        std::this_thread::sleep_for(std::chrono::milliseconds(min_rtt));
+        std::vector<FakeConnection*> conns = get_all_connections();
+        for (FakeConnection *conn : conns) {
+            uint64_t now = getMillis();   
+            uint64_t active = conn->get_last_acitve_time();
+            int gap = now > active ? now - active : 0;
+            //60·ÖÖÓÃ»ÓÐactiveÔòÅÐ¶¨Îªdead connection£¬×öÇåÀí
+            if (ConnManager::isserver && gap >= 3600000) {
+                del_addr(conn->get_addr());
+                del_conn(conn->get_conn_id());
+            } else if (ConnManager::isserver && gap > 240000)
+            {
+                conn->pkt_send(nullptr, 0);
+            } else {
+                conn->resend_lock.lock();
+                for (auto i = conn->resend_map.cbegin(); i != conn->resend_map.cend(); ++i) {
+                    if (i->second <= now) {
+                        if (!conn->lock_buffer(i->first))
+                            continue;
+                        conn->pkt_resend(i->first);
+                        conn->unlock_buffer(i->first);
+                    }
+                }
+                conn->resend_lock.unlock();
+                // for (size_t i = 0; i < BUF_NUM; ++i) {
+                //     if (conn->nextSendtime[i] && conn->nextSendtime[i] <= now) {
+                //         if (!conn->lock_buffer(i))
+                //             continue;
+                //         conn->pkt_resend(i);
+                //         conn->unlock_buffer(i);
+                //     }
+                // }
+            }
         }
     }
+    
 }
 //--------------------------------------------------------
 // FakeConnection implementation
@@ -248,7 +285,7 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
     // myack += len; //TCP ack
     scphead* scp = (scphead*) buf;
 
-    last_active_time = getSeconds();
+    last_active_time = getMillis();
 
     if(!(srcaddr == remote_ip_port)){ // client ip change.
         ConnManager::del_addr(remote_ip_port);
@@ -257,7 +294,7 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
     }
 
     if(scp->type == 0){ // ack
-        uint16_t pkt_ack = scp->ack;
+        uint16_t pkt_ack = scp->ack % BUF_NUM;
         printf("ack_coming.\n");
         if(!buf_used.test(pkt_ack)){
             //redundent ack
@@ -267,24 +304,31 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         while(!lock_buffer(pkt_ack)){
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        uint64_t this_rtt = getMicrosDiff(sendtime[pkt_ack]);
+        uint64_t this_rtt = getMillsDiff(sendtime[pkt_ack]);
+        if (this_rtt == 0)
+            this_rtt = 1;
         // if(now_rtt == 0) now_rtt = this_rtt;
         now_rtt = now_rtt*0.8 + this_rtt*0.2;
+        ConnManager::min_rtt = std::min(now_rtt, ConnManager::min_rtt);
         //printf("release buffer.\n");
         buf_used.reset(pkt_ack);
         buflen[pkt_ack] = 0;
         pkt_in_buf--;
+        resend_lock.lock();
+        resend_map.erase(pkt_ack);
+        //nextSendtime[pkt_ack] = 0;
+        resend_lock.unlock();
         //printf("pkt_in_buf: %ld\n",pkt_in_buf);
         unlock_buffer(pkt_ack);
         return 1;
     }else if(scp->type == 1) { 
-        //æœåŠ¡å™¨ç«¯æ”¶åˆ°ä¸‰æ¬¡æ¡æ‰‹æŠ¥æ–‡
+        //·þÎñÆ÷¶ËÊÕµ½Èý´ÎÎÕÊÖ±¨ÎÄ
         if (scp->ack == 0x7fff && scp->pktnum == 0x7fff)
             ConnManager::get_conn(scp->connid)->establish_ok();
         return -1;
     }else if(scp->type == 2) { // data ,sendback_ack
 
-        //æœåŠ¡å™¨ç«¯å¯èƒ½æ²¡æœ‰establishedå°±æ”¶åˆ°dataæŠ¥æ–‡ï¼Œåˆ™å›žå¤ä¸€ä¸ªäºŒæ¬¡æ¡æ‰‹æŠ¥æ–‡
+        //·þÎñÆ÷¶Ë¿ÉÄÜÃ»ÓÐestablished¾ÍÊÕµ½data±¨ÎÄ£¬Ôò»Ø¸´Ò»¸ö¶þ´ÎÎÕÊÖ±¨ÎÄ
         // if (!ConnManager::get_conn(scp->connid)->is_established()) {
         //     reply_syn(remote_ip_port, scp->conn_id);
         //     return -5;
@@ -332,21 +376,20 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 }
 
 // resend logic may need to change.
-void packet_resend_thread(FakeConnection* fc, size_t bufnum){
-    int maxresend = 10;
-    while(maxresend--){
-        uint64_t resend_wait = fc->now_rtt;
-        std::this_thread::sleep_for(std::chrono::microseconds(resend_wait));
-        if(!fc->lock_buffer(bufnum)){
-            break;
-        }        
-        if(fc->pkt_resend(bufnum) == 0){
-            fc->unlock_buffer(bufnum);
-            break; 
-        }
-        fc->unlock_buffer(bufnum);
-    }
-}
+// void packet_resend_thread(FakeConnection* fc, size_t bufnum){
+//     while(true){
+//         uint64_t resend_wait = fc->now_rtt;
+//         std::this_thread::sleep_for(std::chrono::microseconds(resend_wait));
+//         if(!fc->lock_buffer(bufnum)){
+//             break;
+//         }        
+//         if(fc->pkt_resend(bufnum) == 0){
+//             fc->unlock_buffer(bufnum);
+//             break; 
+//         }
+//         fc->unlock_buffer(bufnum);
+//     }
+// }
 
 // add scpheader / tcpheader.
 size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
@@ -409,10 +452,16 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
 
     //if(bufnum % 10)
     sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin)); 
-    sendtime[bufnum] = getMicros();
+    sendtime[bufnum] = getMillis();
+    resend_lock.lock();
+    // nextSendtime[bufnum] = sendtime[bufnum] + now_rtt;
+    resend_map[bufnum] = sendtime[bufnum] + now_rtt;
+    resend_lock.unlock();
+    //std::cout << nextSendtime << std::endl;
+    //std::cout << "rtt" << now_rtt << std::endl;
     //printf("after send.\n");
-    std::thread resend_thread(packet_resend_thread,this,bufnum);
-    resend_thread.detach();
+    // std::thread resend_thread(packet_resend_thread,this,bufnum);
+    // resend_thread.detach();
     return sendbytes;
 #endif
     
@@ -420,12 +469,15 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
 
 size_t FakeConnection::pkt_resend(size_t bufnum){
     if(!is_establish) {
+        resend_map[bufnum] += 1.5*now_rtt;
+        //nextSendtime[bufnum] += now_rtt;
         printf("not establish,resend failed.\n");
         return 1;
     } 
     if(!buf_used.test(bufnum)){
         return 0;
     }
+    resend_map[bufnum] += 1.5*now_rtt;
     return sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
 }
 
