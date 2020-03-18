@@ -56,13 +56,21 @@ void service_thread(){
     uint32_t this_conn_id;
     int recv_packets = 0;
     testData.clear();
+<<<<<<< HEAD
+=======
+    int headlen = ConnManager::tcp_enable ? 70 : 8; 
+>>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
 
     addr_port src;
     bool tcpenable = ConnManager::tcp_enable;
     struct sockaddr_in fromAddr;
     socklen_t fromAddrLen = sizeof(fromAddr);
+<<<<<<< HEAD
 
     while(1){
+=======
+    while(ConnManager::local_recv_fd){
+>>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
         uint64_t recvTime = getMicros();
          if(tcpenable){
             n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
@@ -107,7 +115,7 @@ void service_thread(){
                 break;
         }
         if(stat == 7){
-            std::string data = std::string(recvbuf + 62,n - 62);
+            std::string data = std::string(recvbuf + headlen,n - headlen);
             if(testData.count(data) == 0){
                 testData[data] = recvTime;
                 recv_packets++;
@@ -127,6 +135,9 @@ void service_thread(){
             if(recv_packets == pktNum1 + pktNum2 + pktNum3){
                 recordTestResult(3);
                 testData.clear();
+                printf("finish test!\n");
+                sleep(300);
+                scp_close();
             }
         }
         // n = recvfrom(recv_rawsockfd, recvbuf, 1024, 0, NULL, NULL); 
@@ -156,8 +167,12 @@ int main(int argc, char const *argv[])
         printf("connect to server failed.\n");
     }
     
+<<<<<<< HEAD
     sleep(300);
     scp_close();
     sleep(10);
+=======
+    sleep(30000);
+>>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
     return 0;
 }

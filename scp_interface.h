@@ -166,7 +166,8 @@ size_t scp_send(const char* buf,size_t len,FakeConnection* fc){
 }
 
 int scp_close() {
-    //server不调�?    if (ConnManager::isserver)
+    //server不调�?    
+    if (ConnManager::isserver)
         return -1;
     std::vector<FakeConnection*> conns = ConnManager::get_all_connections();
     if (conns.size() == 0)

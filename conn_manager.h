@@ -215,21 +215,21 @@ uint32_t ConnManager::get_connid(addr_port addr){
     }
 }
 
-//µ±initµÄÊ±ºò¾Í´´½¨Ïß³Ì£¬Ã¿¸ômin_rttÖ´ÐÐ
+//ï¿½ï¿½initï¿½ï¿½Ê±ï¿½ï¿½Í´ï¿½ï¿½ï¿½ï¿½ß³Ì£ï¿½Ã¿ï¿½ï¿½min_rttÖ´ï¿½ï¿½
 void ConnManager::resend_and_clear() {
     while (true) {
-        //closeµÄÊ±ºò»á°Ñmin_rttÉèÖÃÎª0
+        //closeï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½min_rttï¿½ï¿½ï¿½ï¿½Îª0
         if (!min_rtt)
             return;
        // printf("resend and clear!\n");
-        //Ã¿¸ôÒ»¸ömin_rttÔËÐÐÒ»´Î£¬ÖØ´«µÄÊ±¼ä²»»áÄÇÃ´×¼È·£¬µ«ÊÇ¿ÉÒÔ¼õÉÙÏß³ÌµÄ´´½¨ºÍÇÐ»»¿ªÏú
+        //Ã¿ï¿½ï¿½Ò»ï¿½ï¿½min_rttï¿½ï¿½ï¿½ï¿½Ò»ï¿½Î£ï¿½ï¿½Ø´ï¿½ï¿½ï¿½Ê±ï¿½ä²»ï¿½ï¿½ï¿½ï¿½Ã´×¼È·ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ß³ÌµÄ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½
         std::this_thread::sleep_for(std::chrono::milliseconds(min_rtt));
         std::vector<FakeConnection*> conns = get_all_connections();
         for (FakeConnection *conn : conns) {
             uint64_t now = getMillis();   
             uint64_t active = conn->get_last_acitve_time();
             int gap = now > active ? now - active : 0;
-            //60·ÖÖÓÃ»ÓÐactiveÔòÅÐ¶¨Îªdead connection£¬×öÇåÀí
+            //60ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½activeï¿½ï¿½ï¿½Ð¶ï¿½Îªdead connectionï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             if (ConnManager::isserver && gap >= 3600000) {
                 del_addr(conn->get_addr());
                 del_conn(conn->get_conn_id());
@@ -322,13 +322,13 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         unlock_buffer(pkt_ack);
         return 1;
     }else if(scp->type == 1) { 
-        //·þÎñÆ÷¶ËÊÕµ½Èý´ÎÎÕÊÖ±¨ÎÄ
+        //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½
         if (scp->ack == 0x7fff && scp->pktnum == 0x7fff)
             ConnManager::get_conn(scp->connid)->establish_ok();
         return -1;
     }else if(scp->type == 2) { // data ,sendback_ack
 
-        //·þÎñÆ÷¶Ë¿ÉÄÜÃ»ÓÐestablished¾ÍÊÕµ½data±¨ÎÄ£¬Ôò»Ø¸´Ò»¸ö¶þ´ÎÎÕÊÖ±¨ÎÄ
+        //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë¿ï¿½ï¿½ï¿½Ã»ï¿½ï¿½establishedï¿½ï¿½ï¿½Õµï¿½dataï¿½ï¿½ï¿½Ä£ï¿½ï¿½ï¿½Ø¸ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½
         // if (!ConnManager::get_conn(scp->connid)->is_established()) {
         //     reply_syn(remote_ip_port, scp->conn_id);
         //     return -5;
