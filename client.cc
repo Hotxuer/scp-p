@@ -1,5 +1,5 @@
 #define CLNT_MODE
-#include "scp_interface.h"
+#include "include/scp_interface.h"
 #include <cstring>
 
 #define LOCAL_PORT_USED 17000

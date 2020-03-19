@@ -1,19 +1,37 @@
-all: server client server_libevent libscp.so
+#all: obj/scp_interface.o obj/conn_manager.o obj/frame_parser.o obj/packet_generator.o obj/conn_id_manager.o obj/common_lib.o obj/server.o obj/client.o obj/server_libevent.o lib/scplib.a bin/server bin/client bin/server_libevent
+all: bin/server_libevent bin/server bin/client lib/scplib.a 
+CC=g++
+CFLAGS=-O2
 
-dependence=common_lib.h header_info.h packet_generator.h  conn_manager.h frame_parser.h scp_interface.h
+bin/server_libevent: obj/server_libevent.o lib/scplib.a
+	$(CC) $^ $(CFLAGS) -o $@ -L /usr/lib/libevent/lib/ -levent -lpthread
+bin/server: obj/server.o lib/scplib.a
+	$(CC) $^ $(CFLAGS) -o $@ -lpthread
+bin/client: obj/client.o lib/scplib.a
+	$(CC) $^ $(CFLAGS) -o $@ -lpthread	
 
-server: $(dependence) server.cc
-	g++ -o server $(dependence) server.cc -lpthread
+lib/scplib.a: obj/scp_interface.o obj/conn_manager.o obj/frame_parser.o obj/packet_generator.o obj/conn_id_manager.o obj/common_lib.o
+	ar -cr $@ $^
+obj/client.o: client.cc include/scp_interface.h
+	$(CC) $(CFLAGS) -c $< -o $@
+obj/server.o: server.cc include/scp_interface.h
+	$(CC) $(CFLAGS) -c $< -o $@
+obj/server_libevent.o: server_libevent.cc include/scp_interface.h
+	$(CC) $(CFLAGS) -I /usr/lib/libevent/include -c $< -o $@
 
-client: $(dependence) client.cc
-	g++ -o client $(dependence) client.cc -lpthread
 
-server_libevent: $(dependence) server_libevent.cc
-	g++ -o server_libevent $(dependence) server_libevent.cc -I /usr/lib/libevent/include -L /usr/lib/libevent/lib/ -levent -lpthread 
-
-libscp.so: $(dependence)
-	g++ $(dependence) libscp.cc -fPIC -shared -o libscp.so
-
+obj/scp_interface.o: scp_interface.cc include/scp_interface.h include/frame_parser.h include/packet_generator.h
+	$(CC) $(CFLAGS) -c $< -o $@
+obj/conn_manager.o: conn_manager.cc include/packet_generator.h include/conn_id_manager.h include/conn_manager.h
+	$(CC) $(CFLAGS) -c $< -o $@
+obj/frame_parser.o: frame_parser.cc include/header_info.h include/conn_manager.h include/frame_parser.h
+	$(CC) $(CFLAGS) -c $< -o $@
+obj/packet_generator.o: packet_generator.cc include/header_info.h include/packet_generator.h
+	$(CC) $(CFLAGS) -c $< -o $@
+obj/conn_id_manager.o: conn_id_manager.cc include/conn_id_manager.h
+	$(CC) $(CFLAGS) -c $< -o $@
+obj/common_lib.o: common_lib.cc include/common_lib.h
+	$(CC) $(CFLAGS) -c $< -o $@
 clean:
-	rm server client server_libevent libscp.so
+	rm bin/* lib/* obj/*
  

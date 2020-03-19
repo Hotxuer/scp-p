@@ -1,16 +1,16 @@
-all: server client server_libevent
+all: server client
+CC=g++
+CFLAGS=-O2
 
-dependence=common_lib.h header_info.h packet_generator.h  conn_manager.h frame_parser.h scp_interface.h
-
-server: $(dependence) server.cc
-	g++ -o server $(dependence) server.cc -lpthread
-
-client: $(dependence) client.cc
-	g++ -o client $(dependence) client.cc -lpthread
-
-server_libevent: $(dependence) server_libevent.cc
-	g++ -o server_libevent $(dependence) server_libevent.cc -I /usr/lib/libevent/include -L /usr/lib/libevent/lib/ -levent -lpthread 
+server: server.o ../lib/scplib.a
+	$(CC) $^ $(CFLAGS) -o $@ -lpthread
+client: client.o ../lib/scplib.a
+	$(CC) $^ $(CFLAGS) -o $@ -lpthread
+server.o: SCPTestServer.cc ../include/scp_interface.h
+	$(CC) $(CFLAGS) -c $< -o $@
+client.o: SCPTestServer.cc ../include/scp_interface.h
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm server client server_libevent
- 
+	rm *.o client server
+

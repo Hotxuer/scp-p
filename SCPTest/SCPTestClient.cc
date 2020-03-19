@@ -2,7 +2,7 @@
 #include <thread>
 #include <unordered_map>
 #include <fstream>
-#include "../scp_interface.h"
+#include "../include/scp_interface.h"
 
 #define LOCAL_PORT_USED 17000
 #define REMOTE_PORT_USED 17001
@@ -56,21 +56,13 @@ void service_thread(){
     uint32_t this_conn_id;
     int recv_packets = 0;
     testData.clear();
-<<<<<<< HEAD
-=======
     int headlen = ConnManager::tcp_enable ? 70 : 8; 
->>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
 
     addr_port src;
     bool tcpenable = ConnManager::tcp_enable;
     struct sockaddr_in fromAddr;
     socklen_t fromAddrLen = sizeof(fromAddr);
-<<<<<<< HEAD
-
-    while(1){
-=======
     while(ConnManager::local_recv_fd){
->>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
         uint64_t recvTime = getMicros();
          if(tcpenable){
             n = recvfrom(ConnManager::local_recv_fd,recvbuf,4096,0,NULL,NULL);
@@ -167,12 +159,8 @@ int main(int argc, char const *argv[])
         printf("connect to server failed.\n");
     }
     
-<<<<<<< HEAD
     sleep(300);
     scp_close();
     sleep(10);
-=======
-    sleep(30000);
->>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
     return 0;
 }

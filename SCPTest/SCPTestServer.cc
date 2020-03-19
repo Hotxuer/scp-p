@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-//#include "../TCPTest/getTime.cc"
-=======
->>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
 #include <thread>
-#include "../scp_interface.h"
+#include "../include/scp_interface.h"
 #define LOCAL_PORT_USED 17001
 #define REMOTE_PORT_USED 17000
 
@@ -114,16 +110,10 @@ int main(int argc, char const *argv[])
     if(ret) printf("init_rawsocket error.");
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
     //connect(htons(LOCAL_ADDR),htons(REMOTE_ADDR));
-<<<<<<< HEAD
     printf("bind ok!\n");
     std::thread ser(service_thread);
     ser.detach();
     std::this_thread::sleep_for(std::chrono::seconds(30));
-=======
-    std::thread ser(service_thread);
-    ser.detach();
-    std::this_thread::sleep_for(std::chrono::seconds(20));
->>>>>>> 0ebfc228aade9d4e301d628c8915b8d0d27a47de
    // sleep(20);// wait for the connection;
 
     std::thread sendthread(send_thread);
