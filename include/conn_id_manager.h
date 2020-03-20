@@ -3,24 +3,38 @@
 #include <iostream>
 #include <unordered_set>
 
-//manager可以考虑写成unordered_map<uint32_t, sockaddr_in>保存在conn_manager中?
-//尽量用unordered_map,哈希查找，速度>>红黑树?
-//可以考虑manager选用LRU结构进行管理，清理LRU的末端？
+/**
+   * \class ConnidManager
+   * \brief this class is used to assign and manage the connection ID
+  */
 class ConnidManager{
 public:
+    /**
+    * \brief get the only 32 bits connection ID
+    * \return 32 bits connection id
+    */
     static uint32_t getConnID();
+
+    /**
+    * \brief delete the given 32 bits connection ID
+    */
     static void delConnID(uint32_t connID);
-    static int local_conn_id; //client only
+
+    /**
+    * store the 32 bits connection ID in client only
+    * the connection id represents the client device
+    */
+    static int local_conn_id;
 private:
+    /**
+    * \brief generate the 32 bits random number
+    * \return 32 bits random number
+    */
     static uint32_t getNewRandom32();
+
+    /**
+    * store the 32 bits connection ID
+    * for server, this unordered_set collect all the connection ID of its clients
+    */
     static std::unordered_set<uint32_t> ConnID_Manager;    
 };
-
-
-
-//仅作为测试?
-// int main(int argc, char const *argv[])
-// {
-//     std::cout << getConnID() << " " << getConnID() << std::endl;
-//     return 0;
-// }

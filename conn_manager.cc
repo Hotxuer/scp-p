@@ -75,7 +75,11 @@ bool ConnManager::exist_addr(addr_port addr){
 }
 
 bool ConnManager::add_addr(addr_port addr,uint32_t connid){
+    if (addr_pool.find(addr) != addr_pool.end()) {
+        return addr_pool[addr] == connid;
+    }
     addr_pool[addr] = connid;
+    return true;
     //return addr_pool.insert(addr).second;
 }
 
@@ -165,8 +169,9 @@ void FakeConnection::unlock_buffer(size_t bufnum){
 
 // return 0 : redundent ack
 // return 1 : legal ack
-// return -1 : reset request
+// return -1 : shakehand packet
 // return 2 : data packet
+// return 3: keep alive packet
 int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp modify ok
     // scp packet come in.
     // myack += len; //TCP ack
