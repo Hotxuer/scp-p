@@ -4,11 +4,11 @@ CC=g++
 CFLAGS=-O2
 
 bin/server_libevent: obj/server_libevent.o lib/scplib.a
-	$(CC) $^ $(CFLAGS) -o $@ -L /usr/lib/libevent/lib/ -levent -lpthread
+	$(CC) $^ $(CFLAGS) -o $@ -L /usr/lib/libevent/lib/ -levent -lpthread -lglog -lgflags
 bin/server: obj/server.o lib/scplib.a
-	$(CC) $^ $(CFLAGS) -o $@ -lpthread
+	$(CC) $^ $(CFLAGS) -o $@ -lpthread -lglog -lgflags
 bin/client: obj/client.o lib/scplib.a
-	$(CC) $^ $(CFLAGS) -o $@ -lpthread	
+	$(CC) $^ $(CFLAGS) -o $@ -lpthread -lglog -lgflags
 
 lib/scplib.a: obj/scp_interface.o obj/conn_manager.o obj/frame_parser.o obj/packet_generator.o obj/conn_id_manager.o obj/common_lib.o
 	ar -cr $@ $^

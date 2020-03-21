@@ -58,3 +58,12 @@ size_t scp_send(const char* buf,size_t len,FakeConnection* fc);
    * \return 0 means success, -1 means failed
    */
 int scp_close();
+
+/**
+   * \brief init the glog module
+   *
+   * \param name name of the running project
+   * \param dest destination of log file
+   * \return 0 means success, -1 means failed
+   */
+int init_glog(const char* name, const char* dest);

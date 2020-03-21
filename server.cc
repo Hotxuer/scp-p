@@ -73,6 +73,7 @@ void service_thread(bool isserver){
 
 int main(int argc,char** argv){
 
+    init_glog(argv[0], "../logs/");
     int ret = init_rawsocket(false, true);
     if(ret) printf("init_rawsocket error.");
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
@@ -84,16 +85,19 @@ int main(int argc,char** argv){
 
 
     char str[10] = "hello_scp";
-    printf("here.\n");
+//    printf("here.\n");
+    LOG(INFO) << "here";
     std::vector<FakeConnection*> v = ConnManager::get_all_connections();
     size_t sendsz;
-    printf("now_link %ld\n",v.size());
+//    printf("now_link %ld\n",v.size());
+    LOG(INFO) << "now_link" << v.size();
     for(auto i : v){
         sendsz = scp_send(str,9,i);
         printf("send:--%ld\n",sendsz);
     }
     
     //size_t sendsz = send(str,9,inet_addr(REMOTE_ADDR));
-    
+
+
     sleep(10000);
 }

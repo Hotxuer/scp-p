@@ -23,6 +23,7 @@
 #include <set>
 #include <mutex>
 #include <chrono>
+#include <glog/logging.h>
 
 /**
    * \brief get the timestamp in seconds
