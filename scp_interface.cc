@@ -178,3 +178,16 @@ int scp_close() {
     ConnManager::min_rtt = 0;
     return 0;
 }
+
+int init_glog(const char* name, const char* dest) {
+//    if (_access(dest, 0) == -1)	//如果文件夹不存在
+//        _mkdir(dest);				//则创建
+    google::InitGoogleLogging(name);
+    FLAGS_log_dir = dest;
+    FLAGS_alsologtostderr = true;
+    FLAGS_colorlogtostderr = true;
+    FLAGS_log_prefix = true;
+    FLAGS_max_log_size = 10;
+    FLAGS_stop_logging_if_full_disk = true;
+    return 0;
+}
