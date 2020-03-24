@@ -34,11 +34,12 @@ void service_thread(bool isserver){
             stat = parse_frame(recvbuf ,n,this_conn_id,src);
         }
         LOG_IF(ERROR, n <= 0) << "recv error, errno :" << errno;
-        LOG_IF(ERROR, n > 0) << "recv from socket, len " << n;
+        //LOG_IF(INFO, n > 0) << "recv from socket, len " << n;
         //printf("recv from raw socket, len ,%d\n",n);
         switch (stat){
             case 1:
                 LOG(INFO) << "a request for exist connnection.";
+                break;
                 //printf("a request for exist connnection. \n");
             case 2:
                 LOG(INFO) << "a request for client.";

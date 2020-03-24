@@ -43,39 +43,48 @@ void handle_event(evutil_socket_t listener, short event, void *arg){
     //headerinfo h;
     //stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,ev_args->isserver);
     switch (stat){
-        case 0:
-                printf("recv a data pkt when not established\n");
-                break;
-            case 1:
-                printf("a request for exist connnection. \n");
-                break;
-            case 2:
-                printf("a request from client.\n");
-                break;
-            case 3:
-                printf("recv a back SYN-ACK from server(not in the server).\n");
-                break;
-            case 4:
-                printf("server recv a pkt with reply-syn-ack.\n");
-                break;
-            case 5:
-                printf("recv a scp redundent ack.\n");
-                break;
-            case 6:
-                printf("recv a scp packet ack.\n");
-                break;
-            case 7:
-                printf("recv a scp data packet.\n");
-                break;
-            case 8:
-                printf("recv heart beat packet.\n");
-            case 9:
-                printf("recv close packet.\n");
-            case -1:
-                printf("recv a illegal frame.\n");
-                break;
-            default:
-                break;
+        case 1:
+            LOG(INFO) << "a request for exist connnection.";
+                //printf("a request for exist connnection. \n");
+            break;
+        case 2:
+            LOG(INFO) << "a request for client.";
+                //printf("a request from client.\n");
+            break;
+        case 3:
+            LOG(INFO) << "recv a back SYN-ACK from server(not in the server).";
+                // printf("recv a back SYN-ACK from server(not in the server).\n");
+            break;
+        case 4:
+            LOG(INFO) << "server recv a pkt with reply-syn-ack.";
+                // printf("recv a reset request.\n");
+            break;
+        case 5:
+            LOG(INFO) << "recv a scp redundent ack.";
+                // printf("recv a scp redundent ack.\n");
+            break;
+        case 6:
+            LOG(INFO) << "recv a scp packet ack.";
+                // printf("recv a scp packet ack.\n");
+            break;
+        case 7:
+            LOG(INFO) << "recv a scp data packet.";
+                // printf("recv a scp data packet.\n");
+            break;
+        case 8:
+            LOG(INFO) << "recv heart beat packet.";
+                // printf("recv heart beat packet.\n");
+            break;
+        case 9:
+            LOG(INFO) << "recv close packet.";
+                // printf("recv close packet.\n");
+            break;
+        case -1:
+            LOG(WARNING) << "recv a illegal frame.";
+                // printf("recv a illegal frame.\n");
+            break;
+        default:
+            break;
     }
 }
 
@@ -94,9 +103,9 @@ void service_thread(bool isserver){
 }
 
 int main(int argc,char** argv){
-
+    init_glog(argv[0], "../logs/");
     int ret = init_rawsocket(false, true);
-    if(ret) printf("init_rawsocket error.");
+    if(ret) LOG(ERROR) << "init socket error!";
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
     /*
     int ret = init_rawsocket(my_bpf_code,sizeof(my_bpf_code)/sizeof(struct sock_filter));
@@ -112,7 +121,8 @@ int main(int argc,char** argv){
     size_t sendsz;
     for(auto i : v){
         sendsz = scp_send(str,9,i);
-        printf("send:--%ld\n",sendsz);
+        LOG(INFO) << "send :" << sendsz;
+        // printf("send:--%ld\n",sendsz);
     }
     //size_t sendsz = send(str,9,inet_addr(REMOTE_ADDR));
     
