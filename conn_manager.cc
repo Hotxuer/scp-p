@@ -108,6 +108,7 @@ void ConnManager::resend_and_clear() {
         std::vector<FakeConnection*> conns = get_all_connections();
         for (FakeConnection *conn : conns) {
             if (!conn->is_established()) {
+                LOG(INFO) << "this link not established, resend 2nd handshake.";
                 reply_syn(conn->get_addr(), conn->connection_id);
                 continue;
             }
