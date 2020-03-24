@@ -472,7 +472,7 @@ int reply_syn(addr_port src,uint32_t& conn_id){
     return ret;  
 }
 
-int reply_syn_ack(addr_port src, uint32_t conn_id) {
+int reply_syn_ack(addr_port src, uint32_t& conn_id) {
     //int ret = 3;
     unsigned char ackbuf[40];
 
