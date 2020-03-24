@@ -24,7 +24,7 @@ obj/scp_interface.o: scp_interface.cc include/scp_interface.h include/frame_pars
 	$(CC) $(CFLAGS) -c $< -o $@
 obj/conn_manager.o: conn_manager.cc include/packet_generator.h include/conn_id_manager.h include/conn_manager.h
 	$(CC) $(CFLAGS) -c $< -o $@
-obj/frame_parser.o: frame_parser.cc include/header_info.h include/conn_manager.h include/conn_manager.h include/frame_parser.h
+obj/frame_parser.o: frame_parser.cc include/header_info.h include/conn_manager.h include/frame_parser.h
 	$(CC) $(CFLAGS) -c $< -o $@
 obj/packet_generator.o: packet_generator.cc include/header_info.h include/packet_generator.h
 	$(CC) $(CFLAGS) -c $< -o $@
