@@ -39,7 +39,8 @@ int scp_bind(in_addr_t localip , uint16_t port){
 
     if (setsockopt(ConnManager::local_recv_fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)) < 0) {
         //perror("setsockopt fail\n"); 
-        printf("setsockopt fail failed\n");
+        //printf("setsockopt fail failed\n");
+        LOG(ERROR) << "setsockopt failed, errno: " << errno;
         return -1;  
     }
 
@@ -61,7 +62,8 @@ int init_rawsocket(bool tcpenable, bool isserver){
         int recv_rawsockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
         if (recv_rawsockfd < 0 ) {
             //perror("socket fail\n");
-            printf("recv socket initial failed\n");
+            LOG(ERROR) << "recv socket initial failed, errno: " << errno; 
+            //printf("recv socket initial failed\n");
             return -1;
         }else{
             ConnManager::local_recv_fd = recv_rawsockfd;
@@ -70,7 +72,8 @@ int init_rawsocket(bool tcpenable, bool isserver){
         //initial send_fd
         int send_rawsockfd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if(send_rawsockfd < 0){
-            printf("send socket initial failed\n");
+            LOG(ERROR) << "send socket initial failed, errno: " << errno;
+            //printf("send socket initial failed\n");
             return -1;
         }else{
             ConnManager::local_send_fd = send_rawsockfd;
@@ -86,7 +89,8 @@ int init_rawsocket(bool tcpenable, bool isserver){
     }else{
         int udp_sockfd = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
         if(udp_sockfd < 0){
-            printf("udp socket initial failed\n");
+            LOG(ERROR) << "udp socket initial failed, errno: " << errno;
+            // printf("udp socket initial failed\n");
             return -1;
         }
         ConnManager::local_recv_fd = udp_sockfd;
@@ -107,7 +111,8 @@ int init_rawsocket(bool isserver){
 
 int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     uint32_t local_id = ConnidManager::local_conn_id;
-    printf("local id : %d.\n",local_id);
+    //printf("local id : %d.\n",local_id);
+    LOG(INFO) << "scp connection, local conn_id: " << local_id;
     if(local_id != 0){ // reconnect
         ConnManager::get_conn(local_id)->establish_rst();
     }
@@ -134,7 +139,8 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     size_t sendsz = hdrlen + sizeof(scphead);
     sendto(ConnManager::local_send_fd,tmp_send_buf,sendsz,0,(struct sockaddr *)&server_addr,sizeof(server_addr));
 
-    printf("send syn ok\n"); 
+    //printf("send syn ok\n"); 
+    LOG(INFO) << "send syn ok.";
 
     uint32_t sleep_time = 20000,max_resend = 5;
 
@@ -164,11 +170,15 @@ size_t scp_send(const char* buf,size_t len,FakeConnection* fc){
 
 int scp_close() {
     //server不调�?    
-    if (ConnManager::isserver)
+    if (ConnManager::isserver) {
+        LOG(WARNING) << "close method only access to client.";
         return -1;
+    }
     std::vector<FakeConnection*> conns = ConnManager::get_all_connections();
-    if (conns.size() == 0)
+    if (conns.size() == 0) {
+        LOG(WARNING) << "nothing to close.";
         return -1;
+    }
     close(ConnManager::local_send_fd);
     if (ConnManager::tcp_enable)
         close(ConnManager::local_recv_fd);
@@ -176,6 +186,7 @@ int scp_close() {
     ConnManager::del_conn(conns[0]->get_conn_id());
     ConnManager::local_recv_fd = ConnManager::local_send_fd = 0;
     ConnManager::min_rtt = 0;
+    LOG(INFO) << "close finish!";
     return 0;
 }
 

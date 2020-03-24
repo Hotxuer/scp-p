@@ -9,17 +9,16 @@ uint64_t getSeconds()
 // Get time stamp in milliseconds.
 uint64_t getMillis()
 {
-    uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::
-                  now().time_since_epoch()).count();
-    return ms; 
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::
+                  now().time_since_epoch()).count(); 
 }
 
 // Get time stamp in microseconds.
 uint64_t getMicros()
 {
-    uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::
                   now().time_since_epoch()).count();
-    return us; 
+    // return us; 
 }
 
 uint64_t getMillsDiff(uint64_t past) {

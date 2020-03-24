@@ -1,10 +1,8 @@
 #include "include/frame_parser.h"
 
-int reply_syn(addr_port src,uint32_t& conn_id);
-int reply_syn_ack(addr_port src, uint32_t conn_id);
-void wait_reply_syn_ack(addr_port src, uint32_t conn_id);
-int parse_tcp_frame(char* buf, size_t len,uint32_t& conn_id,addr_port& srcaddr);
-int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr);
+
+//void wait_reply_syn_ack(addr_port src, uint32_t conn_id);
+
 //int reply_close(addr_port src, uint32_t conn_id);
 
 int parse_tcp_frame(char* buf, size_t len,uint32_t& conn_id,addr_port& srcaddr){
@@ -78,6 +76,7 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
         if (ConnManager::get_conn(conn_id)->is_established()) {
             scpst = ConnManager::get_conn(conn_id)->on_pkt_recv(buf,len,srcaddr);
         } else {
+            //recv packet when not established!
             //reply_syn(srcaddr, scp->connid);
             scpst = -5;
         }
@@ -156,35 +155,6 @@ int parse_frame(char* buf, size_t len,uint32_t& conn_id,addr_port& srcaddr){
     }
 }
 
-int reply_syn_ack(addr_port src, uint32_t conn_id) {
-    //int ret = 3;
-    unsigned char ackbuf[40];
-
-    headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,2};
-    size_t hdrlen = 0;
-
-    if(ConnManager::tcp_enable){
-        generate_tcp_packet(ackbuf,hdrlen,h);
-        generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
-        //myseq += sizeof(scphead) + sizeof(udphead);
-    }
-    generate_scp_packet(ackbuf + hdrlen,1,0x7fff,0x7fff,conn_id);
-
-    sockaddr_in rmt_sock_addr;
-    
-    rmt_sock_addr.sin_family = AF_INET;
-    rmt_sock_addr.sin_addr.s_addr = src.sin;
-    rmt_sock_addr.sin_port = src.port;
-
-    //printf("port : %d\n",src.port);
-    int sz = sendto(ConnManager::local_send_fd,ackbuf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
-    printf("send sz : %d\n",sz);
-    if(sz == -1){
-        int err = errno;
-        printf("errno %d.\n",err);
-    }
-    return 3;  
-}
 
 // int reply_close(addr_port src,uint32_t conn_id) {
 //     unsigned char ackbuf[40];
@@ -215,58 +185,14 @@ int reply_syn_ack(addr_port src, uint32_t conn_id) {
 //     return 0;  
 // }
 
-int reply_syn(addr_port src,uint32_t& conn_id){
-    int ret = 1;
-    if(ConnManager::exist_addr(src)){
-        printf("exist address.\n");
-        printf("conn_id : %d.\n",conn_id);
-        conn_id = ConnManager::get_connid(src);
-        printf("conn_id : %d.\n",conn_id);
-    }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
-        conn_id = ConnidManager::getConnID();
-        ConnManager::add_conn(conn_id,new FakeConnection(src));
-        ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
-        //ConnManager::get_conn(conn_id)->establish_ok();
-        ConnManager::get_conn(conn_id)->update_para(0,1);
-        ConnManager::add_addr(src,conn_id);
-        
-        std::thread thr(wait_reply_syn_ack, src, conn_id);
-        thr.detach();
-        
-        ret = 2;
-    }
-    unsigned char ackbuf[40];
-    headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,1};
-    size_t hdrlen = 0;
 
-    if(ConnManager::tcp_enable){
-        generate_tcp_packet(ackbuf,hdrlen,h);
-        generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
-    }
-    generate_scp_packet(ackbuf + hdrlen,1,0,0x7fff,conn_id);
 
-    sockaddr_in rmt_sock_addr;
-    
-    rmt_sock_addr.sin_family = AF_INET;
-    rmt_sock_addr.sin_addr.s_addr = src.sin;
-    rmt_sock_addr.sin_port = src.port;
-
-    //printf("port : %d\n",src.port);
-    int sz = sendto(ConnManager::local_send_fd,ackbuf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
-    printf("send sz : %d\n",sz);
-    if(sz == -1){
-        int err = errno;
-        printf("errno %d.\n",err);
-    }
-    return ret;  
-}
-
-void wait_reply_syn_ack(addr_port src,uint32_t conn_id) {
-    uint32_t sleep_time = 10000, max_wait = 5;
-    std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
-    if (!ConnManager::exist_conn(conn_id) || !ConnManager::exist_addr(src) 
-        || ConnManager::get_conn(conn_id)->is_established() || !(max_wait--))
-        return;
-    reply_syn(src, conn_id);
-    sleep_time <<= 1;
-}
+// void wait_reply_syn_ack(addr_port src,uint32_t conn_id) {
+//     uint32_t sleep_time = 10000, max_wait = 5;
+//     std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
+//     if (!ConnManager::exist_conn(conn_id) || !ConnManager::exist_addr(src) 
+//         || ConnManager::get_conn(conn_id)->is_established() || !(max_wait--))
+//         return;
+//     reply_syn(src, conn_id);
+//     sleep_time <<= 1;
+// }

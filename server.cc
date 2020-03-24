@@ -15,6 +15,7 @@ int pktNum1, pktNum2, pktNum3;
 
 
 void service_thread(bool isserver){
+    LOG(INFO) << "start service thread";
     int stat;size_t n;
     char recvbuf[4096];
     uint32_t this_conn_id;
@@ -32,32 +33,48 @@ void service_thread(bool isserver){
             src.port = fromAddr.sin_port;
             stat = parse_frame(recvbuf ,n,this_conn_id,src);
         }
+        LOG_IF(ERROR, n <= 0) << "recv error, errno :" << errno;
+        LOG_IF(ERROR, n > 0) << "recv from socket, len " << n;
         //printf("recv from raw socket, len ,%d\n",n);
-        
-        
         switch (stat){
             case 1:
-                printf("a request for exist connnection. \n");
+                LOG(INFO) << "a request for exist connnection.";
+                //printf("a request for exist connnection. \n");
             case 2:
-                printf("a request from client.\n");
+                LOG(INFO) << "a request for client.";
+                //printf("a request from client.\n");
                 break;
             case 3:
-                printf("recv a back SYN-ACK from server(not in the server).\n");
+                LOG(INFO) << "recv a back SYN-ACK from server(not in the server).";
+                // printf("recv a back SYN-ACK from server(not in the server).\n");
                 break;
             case 4:
-                printf("recv a reset request.\n");
+                LOG(INFO) << "server recv a pkt with reply-syn-ack.";
+                // printf("recv a reset request.\n");
                 break;
             case 5:
-                printf("recv a scp redundent ack.\n");
+                LOG(INFO) << "recv a scp redundent ack.";
+                // printf("recv a scp redundent ack.\n");
                 break;
             case 6:
-                printf("recv a scp packet ack.\n");
+                LOG(INFO) << "recv a scp packet ack.";
+                // printf("recv a scp packet ack.\n");
                 break;
             case 7:
-                printf("recv a scp data packet.\n");
+                LOG(INFO) << "recv a scp data packet.";
+                // printf("recv a scp data packet.\n");
+                break;
+            case 8:
+                LOG(INFO) << "recv heart beat packet.";
+                // printf("recv heart beat packet.\n");
+                break;
+            case 9:
+                LOG(INFO) << "recv close packet.";
+                // printf("recv close packet.\n");
                 break;
             case -1:
-                printf("recv a illegal frame.\n");
+                LOG(WARNING) << "recv a illegal frame.";
+                // printf("recv a illegal frame.\n");
                 break;
             default:
                 break;

@@ -97,6 +97,7 @@ uint32_t ConnManager::get_connid(addr_port addr){
 
 //��init��ʱ��ʹ����̣߳�ÿ��min_rttִ��
 void ConnManager::resend_and_clear() {
+    LOG(INFO) << "resend and clear thread start";
     while (true) {
         //close��ʱ����min_rtt����Ϊ0
         if (!min_rtt)
@@ -106,11 +107,16 @@ void ConnManager::resend_and_clear() {
         std::this_thread::sleep_for(std::chrono::milliseconds(min_rtt));
         std::vector<FakeConnection*> conns = get_all_connections();
         for (FakeConnection *conn : conns) {
+            if (!conn->is_established()) {
+                reply_syn(conn->get_addr(), conn->connection_id);
+                continue;
+            }
             uint64_t now = getMillis();   
             uint64_t active = conn->get_last_acitve_time();
             int gap = now > active ? now - active : 0;
             //60����û��active���ж�Ϊdead connection��������
             if (ConnManager::isserver && gap >= 3600000) {
+                LOG(INFO) << "clear dead connection, id: " << conn->get_conn_id();
                 del_addr(conn->get_addr());
                 del_conn(conn->get_conn_id());
             } else if (ConnManager::isserver && gap > 240000)
@@ -187,8 +193,10 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 
     if(scp->type == 0){ // ack
         uint16_t pkt_ack = scp->ack % BUF_NUM;
-        printf("ack_coming.\n");
+        LOG(INFO) << "recv an ack packet.";
+        //printf("ack_coming.\n");
         if(!buf_used.test(pkt_ack)){
+            LOG(INFO) << "this is a redundent ack.";
             //redundent ack
             return 0;
         }
@@ -219,7 +227,6 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
             ConnManager::get_conn(scp->connid)->establish_ok();
         return -1;
     }else if(scp->type == 2) { // data ,sendback_ack
-
         //�������˿���û��established���յ�data���ģ���ظ�һ���������ֱ���
         // if (!ConnManager::get_conn(scp->connid)->is_established()) {
         //     reply_syn(remote_ip_port, scp->conn_id);
@@ -242,7 +249,8 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         uint32_t sendsz = hdrlen + sizeof(scphead) ;
         sendto(ConnManager::local_send_fd,ack_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
         return 2;
-    }else if(scp->type == 3) { //heart beat, send heart beat back
+    }else if(scp->type == 3) { 
+        //heart beat, send heart beat back
         //if server recv heart beat, it is an echo from client
         //do nothing, it only use to update the last_active_time
         if (ConnManager::isserver)
@@ -286,7 +294,8 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 // add scpheader / tcpheader.
 size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     if(!is_establish) {
-        printf("not established .\n");
+        LOG(WARNING) << "pkt send when not established.";
+        // printf("not established .\n");
         return 0;
     }
     if (buffer == nullptr) {
@@ -303,13 +312,15 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         generate_scp_packet(heart_beat_buf + hdrlen,3,0,0,connection_id);
         
         uint32_t sendsz = hdrlen + sizeof(scphead);
-        sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
+        int sz = sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
+        LOG_IF(ERROR, sz < 0) << "send to error, errno: " << errno;
         return 0;
     }
     // select a buffer.
     int bufnum = get_used_num();
     if(bufnum == -1){
-        printf("buffer is full.\n");
+        LOG(ERROR) << "buffer is full, cannot send data.";
+        //printf("buffer is full.\n");
         return 0;
     }
     // select a buffer and copy the packet to the buffer
@@ -333,14 +344,14 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         generate_udp_packet((unsigned char*)buf[bufnum] + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead) + len);
     }
     generate_scp_packet((unsigned char*)buf[bufnum] + hdrlen,2,tbufnum,0,connection_id);
-    size_t sendbytes = 0;
+    ssize_t sendbytes = 0;
 
 #ifdef CLNTMODE
     //for(int i = 0;i < 2; i++){
         sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
     //}
 #else
-    printf("before send\n");    
+    //printf("before send\n");    
 
     //if(bufnum % 10)
     sendbytes = sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin)); 
@@ -354,6 +365,7 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     //printf("after send.\n");
     // std::thread resend_thread(packet_resend_thread,this,bufnum);
     // resend_thread.detach();
+    LOG_IF(ERROR, sendbytes < 0) << "send to error, errno: " << errno;
     return sendbytes;
 #endif
     
@@ -363,13 +375,15 @@ size_t FakeConnection::pkt_resend(size_t bufnum){
     if(!is_establish) {
         resend_map[bufnum] += 1.5*now_rtt;
         //nextSendtime[bufnum] += now_rtt;
-        printf("not establish,resend failed.\n");
+        LOG(WARNING) << "not established, resend failed!";
+        //printf("not establish,resend failed.\n");
         return 1;
     } 
     if(!buf_used.test(bufnum)){
         return 0;
     }
     resend_map[bufnum] += 1.5*now_rtt;
+    LOG(INFO) << "resend packet to connection id: " << connection_id << " from buffer " << bufnum;
     return sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
 }
 
@@ -407,4 +421,82 @@ uint32_t FakeConnection::get_conn_id(){
 
 uint64_t FakeConnection::get_last_acitve_time() {
     return last_active_time;
+}
+
+
+int reply_syn(addr_port src,uint32_t& conn_id){
+    int ret = 1;
+    if(ConnManager::exist_addr(src)){
+        //printf("exist address.\n");
+        //printf("conn_id : %d.\n",conn_id);
+        conn_id = ConnManager::get_connid(src);
+        //printf("conn_id : %d.\n",conn_id);
+    }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
+        conn_id = ConnidManager::getConnID();
+        ConnManager::add_conn(conn_id,new FakeConnection(src));
+        ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
+        //ConnManager::get_conn(conn_id)->establish_ok();
+        ConnManager::get_conn(conn_id)->update_para(0,1);
+        ConnManager::add_addr(src,conn_id);
+        
+        // std::thread thr(wait_reply_syn_ack, src, conn_id);
+        // thr.detach();
+
+        ret = 2;
+    }
+    unsigned char ackbuf[40];
+    headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,1};
+    size_t hdrlen = 0;
+
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet(ackbuf,hdrlen,h);
+        generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    }
+    generate_scp_packet(ackbuf + hdrlen,1,0,0x7fff,conn_id);
+
+    sockaddr_in rmt_sock_addr;
+    
+    rmt_sock_addr.sin_family = AF_INET;
+    rmt_sock_addr.sin_addr.s_addr = src.sin;
+    rmt_sock_addr.sin_port = src.port;
+
+    //printf("port : %d\n",src.port);
+    int sz = sendto(ConnManager::local_send_fd,ackbuf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
+    //printf("send sz : %d\n",sz);
+    if(sz == -1){
+        int err = errno;
+        //printf("errno %d.\n",err);
+        LOG(ERROR) << "reply syn error, errno: " << err;
+    }
+    return ret;  
+}
+
+int reply_syn_ack(addr_port src, uint32_t conn_id) {
+    //int ret = 3;
+    unsigned char ackbuf[40];
+
+    headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,2};
+    size_t hdrlen = 0;
+
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet(ackbuf,hdrlen,h);
+        generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+        //myseq += sizeof(scphead) + sizeof(udphead);
+    }
+    generate_scp_packet(ackbuf + hdrlen,1,0x7fff,0x7fff,conn_id);
+
+    sockaddr_in rmt_sock_addr;
+    
+    rmt_sock_addr.sin_family = AF_INET;
+    rmt_sock_addr.sin_addr.s_addr = src.sin;
+    rmt_sock_addr.sin_port = src.port;
+
+    //printf("port : %d\n",src.port);
+    int sz = sendto(ConnManager::local_send_fd,ackbuf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
+    //printf("send sz : %d\n",sz);
+    if(sz == -1){
+        int err = errno;
+        LOG(ERROR) << "reply syn-ack error, errno: " << err;
+    }
+    return 3;  
 }

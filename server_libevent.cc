@@ -43,31 +43,39 @@ void handle_event(evutil_socket_t listener, short event, void *arg){
     //headerinfo h;
     //stat = parse_frame(ev_args->recvbuf + 14,n-14,this_conn_id,ev_args->isserver);
     switch (stat){
-        case 1:
-            printf("a request for exist connnection. \n");
-        case 2:
-            printf("a request from client.\n");
-            break;
-        case 3:
-            printf("recv a back SYN-ACK from server(not in the server).\n");
-            break;
-        case 4:
-            printf("recv a reset request.\n");
-            break;
-        case 5:
-            printf("recv a scp redundent ack.\n");
-            break;
-        case 6:
-            printf("recv a scp packet ack.\n");
-            break;
-        case 7:
-            printf("recv a scp data packet.\n");
-            break;
-        case -1:
-            printf("recv a illegal frame.\n");
-            break;
-        default:
-            break;
+        case 0:
+                printf("recv a data pkt when not established\n");
+                break;
+            case 1:
+                printf("a request for exist connnection. \n");
+                break;
+            case 2:
+                printf("a request from client.\n");
+                break;
+            case 3:
+                printf("recv a back SYN-ACK from server(not in the server).\n");
+                break;
+            case 4:
+                printf("server recv a pkt with reply-syn-ack.\n");
+                break;
+            case 5:
+                printf("recv a scp redundent ack.\n");
+                break;
+            case 6:
+                printf("recv a scp packet ack.\n");
+                break;
+            case 7:
+                printf("recv a scp data packet.\n");
+                break;
+            case 8:
+                printf("recv heart beat packet.\n");
+            case 9:
+                printf("recv close packet.\n");
+            case -1:
+                printf("recv a illegal frame.\n");
+                break;
+            default:
+                break;
     }
 }
 
