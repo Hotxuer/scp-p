@@ -213,6 +213,7 @@ public:
      * \param srcaddr the buf sender addr_port
      * \return 0 : redundent ack, 1 : legal ack, -1 : shakehand packet
                2 : data packet, 3: keep alive packet
+               4 : echo keep alive packet
      */ 
     int on_pkt_recv(void* buf,size_t len,addr_port srcaddr);
 
@@ -223,7 +224,7 @@ public:
      * \param len the intend send length of the buf
      * \return 0 : the scp connection is not established, or the actual send length
      */
-    size_t pkt_send(const void* buf,size_t len);
+    ssize_t pkt_send(const void* buf,size_t len);
 
     /**
      * do the packet resend work to guarantee the reability of scp-p protocol
@@ -309,6 +310,12 @@ public:
      * \return if the virtual link send scp-p packet with fake tcp header
      */ 
     bool is_tcp_enable(){ return using_tcp; }
+
+    void set_RTT(uint64_t rtt); /**set the now_rtt*/
+
+    uint64_t get_RTT(); /**get the now_rtt*/
+
+    void set_RTT_cal_rate(double rate); /**set the cal now_rtt rate*/
 private:
     // -- protocal options --
     bool using_tcp; /** choose if to use fake tcp header*/ 
@@ -322,6 +329,8 @@ private:
     // uint64_t nextSendtime[BUF_NUM]; 
 
     uint64_t now_rtt; /**record the RTT of the virtual link*/
+
+    double rtt_cal_rate; /**the rtt cal rate*/
 
     // -- tcp info --
     uint32_t connection_id; /**record the connection id of the virtual link*/

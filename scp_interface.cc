@@ -162,10 +162,26 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     //return 0;
 }
 
-size_t scp_send(const char* buf,size_t len,FakeConnection* fc){
+ssize_t scp_send(const char* buf,size_t len,FakeConnection* fc){
     //addr_port ta = {rmtaddr,htons(17001)};
     if(!fc) return 0;
     return fc->pkt_send(buf,len);
+}
+
+int scp_send_keep_alive(FakeConnection* fc) {
+    return fc->pkt_send(nullptr, 0);
+}
+
+uint64_t get_RTT(FakeConnection* fc){
+    return fc->get_RTT();
+}
+
+void set_RTT(uint64_t rtt, FakeConnection* fc) {
+    fc->set_RTT(rtt);
+}
+
+void auto_cal_RTT(double rate, FakeConnection* fc) {
+    fc->set_RTT_cal_rate(rate);
 }
 
 int scp_close() {

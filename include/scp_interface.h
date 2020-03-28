@@ -50,7 +50,52 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port);
    *           in client, use ConnManager::get_conn(ConnidManager::local_conn_id) to get the target server
    * \return if success, return the actual send length, 0 means the fc is not exist, -1 means failed 
    */
-size_t scp_send(const char* buf,size_t len,FakeConnection* fc);
+ssize_t scp_send(const char* buf,size_t len,FakeConnection* fc);
+
+/**
+   * \brief send scp keep-alive packet
+   *
+   * \param fc the fakeConnection pointer
+   *           in server, use ConnManager::get_all_connections() to get all the connected client
+   *           or can use ConnManager::get_conn(uint32_t connid) to get the target client
+   *           in client, use ConnManager::get_conn(ConnidManager::local_conn_id) to get the target server
+   * \return if success, return 0, -1 means failed 
+   */
+int scp_send_keep_alive(FakeConnection* fc);
+
+/**
+   * \brief get the now calculated RTT
+   *
+   * \param fc the fakeConnection pointer
+   *           in server, use ConnManager::get_all_connections() to get all the connected client
+   *           or can use ConnManager::get_conn(uint32_t connid) to get the target client
+   *           in client, use ConnManager::get_conn(ConnidManager::local_conn_id) to get the target server
+   * \return now calculated RTT of fc
+   */
+uint64_t get_RTT(FakeConnection* fc);
+
+/**
+   * \brief set the RTT of the fc
+   *
+   * \param rtt the set value
+   * \param fc the fakeConnection pointer
+   *           in server, use ConnManager::get_all_connections() to get all the connected client
+   *           or can use ConnManager::get_conn(uint32_t connid) to get the target client
+   *           in client, use ConnManager::get_conn(ConnidManager::local_conn_id) to get the target server 
+   */
+void set_RTT(uint64_t rtt, FakeConnection* fc);
+
+/**
+   * \brief set the auto calculate rate of rtt
+   *
+   * \param rate the calculate rate, rtt_new = rate*now_rtt + (1-rate)*rtt_old
+   *             if rate = 0, rtt is a const
+   * \param fc the fakeConnection pointer
+   *           in server, use ConnManager::get_all_connections() to get all the connected client
+   *           or can use ConnManager::get_conn(uint32_t connid) to get the target client
+   *           in client, use ConnManager::get_conn(ConnidManager::local_conn_id) to get the target server 
+   */
+void auto_cal_RTT(double rate, FakeConnection* fc);
 
 /**
    * \brief close the scp socket, clear the FakeConnection and the working thread

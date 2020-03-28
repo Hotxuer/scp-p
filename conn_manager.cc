@@ -120,10 +120,10 @@ void ConnManager::resend_and_clear() {
                 LOG(INFO) << "clear dead connection, id: " << conn->get_conn_id();
                 del_addr(conn->get_addr());
                 del_conn(conn->get_conn_id());
-            } else if (ConnManager::isserver && gap > 240000)
+            } else /*if (ConnManager::isserver && gap > 240000)
             {
                 conn->pkt_send(nullptr, 0);
-            } else {
+            } else*/ {
                 conn->resend_lock.lock();
                 for (auto i = conn->resend_map.cbegin(); i != conn->resend_map.cend(); ++i) {
                     if (i->second <= now) {
@@ -158,6 +158,7 @@ FakeConnection::FakeConnection(addr_port addr_pt):remote_ip_port(addr_pt){
     pkt_in_buf = 0;
     using_tcp = 1;
     now_rtt = 20;
+    rtt_cal_rate = 0.2;
     last_active_time = getMillis();
 };
 
@@ -179,6 +180,7 @@ void FakeConnection::unlock_buffer(size_t bufnum){
 // return -1 : shakehand packet
 // return 2 : data packet
 // return 3: keep alive packet
+// return 4: echo keep alive packet
 int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp modify ok
     // scp packet come in.
     // myack += len; //TCP ack
@@ -209,7 +211,7 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         if (this_rtt == 0)
             this_rtt = 1;
         // if(now_rtt == 0) now_rtt = this_rtt;
-        now_rtt = now_rtt*0.8 + this_rtt*0.2;
+        now_rtt = now_rtt*(1-rtt_cal_rate) + this_rtt*rtt_cal_rate;
         ConnManager::min_rtt = std::min(now_rtt, ConnManager::min_rtt);
         //printf("release buffer.\n");
         buf_used.reset(pkt_ack);
@@ -251,36 +253,34 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         sendto(ConnManager::local_send_fd,ack_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
         return 2;
     }else if(scp->type == 3) { 
-        //heart beat, send heart beat back
-        //if server recv heart beat, it is an echo from client
-        //do nothing, it only use to update the last_active_time
-        if (ConnManager::isserver)
-            return 3;
-        
-        //if client recv heart beat, echo the packet
-        headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
-        size_t hdrlen = 0; 
+        //recv keep-alive packet, do echo
+        if (scp->connid == 0 && scp->pktnum == 0) {
+            headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
+            size_t hdrlen = 0; 
 
-        unsigned char heart_beat_buf[30];
+            unsigned char heart_beat_buf[30];
         
-        if(ConnManager::tcp_enable){
-            generate_tcp_packet(heart_beat_buf,hdrlen,h);
-            generate_udp_packet(heart_beat_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+            if(ConnManager::tcp_enable){
+                generate_tcp_packet(heart_beat_buf,hdrlen,h);
+                generate_udp_packet(heart_beat_buf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+            }
+            generate_scp_packet(heart_beat_buf + hdrlen,3,0x7fff,0x7fff,connection_id);
+        
+            //uint32_t sendsz = sizeof(tcphead)+ sizeof(udphead) + sizeof(scphead);
+            uint32_t sendsz = sizeof(scphead) + hdrlen ;
+            sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
+            return 3;
+        } else if (scp->connid == 0x7fff && scp->pktnum == 0x7fff) {
+            return 4;
         }
-        generate_scp_packet(heart_beat_buf + hdrlen,3,0,0,connection_id);
-        
-        //uint32_t sendsz = sizeof(tcphead)+ sizeof(udphead) + sizeof(scphead);
-        uint32_t sendsz = sizeof(scphead) + hdrlen ;
-        sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
-        return 3;
     }
 }
 
-// resend logic may need to change.
+//resend logic may need to change.
 // void packet_resend_thread(FakeConnection* fc, size_t bufnum){
 //     while(true){
 //         uint64_t resend_wait = fc->now_rtt;
-//         std::this_thread::sleep_for(std::chrono::microseconds(resend_wait));
+//         std::this_thread::sleep_for(std::chrono::milliseconds(resend_wait));
 //         if(!fc->lock_buffer(bufnum)){
 //             break;
 //         }        
@@ -293,7 +293,7 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 // }
 
 // add scpheader / tcpheader.
-size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
+ssize_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     if(!is_establish) {
         LOG(WARNING) << "pkt send when not established.";
         // printf("not established .\n");
@@ -372,9 +372,21 @@ size_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     
 }
 
+void FakeConnection::set_RTT(uint64_t rtt) {
+    this->now_rtt = rtt;
+}
+
+uint64_t FakeConnection::get_RTT() {
+    return this->now_rtt;
+}
+
+void FakeConnection::set_RTT_cal_rate(double rate) {
+    this->rtt_cal_rate = rate;
+}
+
 size_t FakeConnection::pkt_resend(size_t bufnum){
     if(!is_establish) {
-        resend_map[bufnum] += 1.5*now_rtt;
+        //resend_map[bufnum] += 1.5*now_rtt;
         //nextSendtime[bufnum] += now_rtt;
         LOG(WARNING) << "not established, resend failed!";
         //printf("not establish,resend failed.\n");
@@ -383,7 +395,7 @@ size_t FakeConnection::pkt_resend(size_t bufnum){
     if(!buf_used.test(bufnum)){
         return 0;
     }
-    resend_map[bufnum] += 1.5*now_rtt;
+    //resend_map[bufnum] += 1.5*now_rtt;
     LOG(INFO) << "resend packet to connection id: " << connection_id << " from buffer " << bufnum;
     return sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
 }
@@ -423,7 +435,6 @@ uint32_t FakeConnection::get_conn_id(){
 uint64_t FakeConnection::get_last_acitve_time() {
     return last_active_time;
 }
-
 
 int reply_syn(addr_port src,uint32_t& conn_id){
     int ret = 1;

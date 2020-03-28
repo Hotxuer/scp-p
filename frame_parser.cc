@@ -146,7 +146,9 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
 // return 6 : data--legal ack
 // return 7 : data--data packet
 // return 8 : heart beat packet
-// return 9 : close 
+// return 9 : echo heart beat packet
+// return 10: close packet
+// return 11: close echo packet 
 int parse_frame(char* buf, size_t len,uint32_t& conn_id,addr_port& srcaddr){
     if(ConnManager::tcp_enable){
         return parse_tcp_frame(buf,len,conn_id,srcaddr);
