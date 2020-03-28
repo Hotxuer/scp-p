@@ -8,7 +8,7 @@ client: client.o ../lib/scplib.a
 	$(CC) $^ $(CFLAGS) -o $@ -lpthread
 server.o: SCPTestServer.cc ../include/scp_interface.h
 	$(CC) $(CFLAGS) -c $< -o $@
-client.o: SCPTestServer.cc ../include/scp_interface.h
+client.o: SCPTestClient.cc ../include/scp_interface.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

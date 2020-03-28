@@ -108,6 +108,7 @@ int main(int argc, char const *argv[])
 
     int ret = init_rawsocket(false, true);
     if(ret) printf("init_rawsocket error.");
+    
     scp_bind(inet_addr(LOCAL_ADDR),LOCAL_PORT_USED);
     //connect(htons(LOCAL_ADDR),htons(REMOTE_ADDR));
     printf("bind ok!\n");

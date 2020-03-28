@@ -24,7 +24,7 @@ public:
     * store the 32 bits connection ID in client only
     * the connection id represents the client device
     */
-    static int local_conn_id;
+    static uint32_t local_conn_id;
 private:
     /**
     * \brief generate the 32 bits random number

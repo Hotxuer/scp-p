@@ -1,7 +1,7 @@
 #include "include/conn_id_manager.h"
 
 std::unordered_set<uint32_t> ConnidManager::ConnID_Manager;
-int ConnidManager::local_conn_id = 0;
+uint32_t ConnidManager::local_conn_id = 0;
 
 uint32_t ConnidManager::getNewRandom32() {
     unsigned int x;

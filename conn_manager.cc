@@ -386,7 +386,7 @@ void FakeConnection::set_RTT_cal_rate(double rate) {
 
 size_t FakeConnection::pkt_resend(size_t bufnum){
     if(!is_establish) {
-        //resend_map[bufnum] += 1.5*now_rtt;
+        resend_map[bufnum] += 1.5*now_rtt;
         //nextSendtime[bufnum] += now_rtt;
         LOG(WARNING) << "not established, resend failed!";
         //printf("not establish,resend failed.\n");
@@ -395,7 +395,7 @@ size_t FakeConnection::pkt_resend(size_t bufnum){
     if(!buf_used.test(bufnum)){
         return 0;
     }
-    //resend_map[bufnum] += 1.5*now_rtt;
+    resend_map[bufnum] += 1.5*now_rtt;
     LOG(INFO) << "resend packet to connection id: " << connection_id << " from buffer " << bufnum;
     return sendto(ConnManager::local_send_fd,buf[bufnum],buflen[bufnum],0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
 }
