@@ -184,25 +184,61 @@ void auto_cal_RTT(double rate, FakeConnection* fc) {
     fc->set_RTT_cal_rate(rate);
 }
 
-int scp_close() {
-    //server不调�?    
-    if (ConnManager::isserver) {
-        LOG(WARNING) << "close method only access to client.";
+int scp_close(FakeConnection* fc) {
+    if (!ConnManager::isserver) {
+        LOG(WARNING) << "close method with argument only access to server.";
+        return -1;
+    }
+    uint32_t connid = fc->get_conn_id();
+    fc->establish_rst();
+    //send close packet;
+    fc->pkt_send(nullptr, -1);
+    ConnManager::del_addr(fc->get_addr());
+    ConnManager::del_conn(fc->get_conn_id());
+    LOG(INFO) << "server close a connection, conn_id: " << connid;
+}
+
+int scp_close_all() {
+    if (!ConnManager::isserver) {
+        LOG(WARNING) << "close all method only access to server.";
         return -1;
     }
     std::vector<FakeConnection*> conns = ConnManager::get_all_connections();
-    if (conns.size() == 0) {
-        LOG(WARNING) << "nothing to close.";
-        return -1;
+    for (auto conn : conns) {
+        scp_close(conn);
     }
     close(ConnManager::local_send_fd);
     if (ConnManager::tcp_enable)
         close(ConnManager::local_recv_fd);
-    ConnManager::del_addr(conns[0]->get_addr());
-    ConnManager::del_conn(conns[0]->get_conn_id());
     ConnManager::local_recv_fd = ConnManager::local_send_fd = 0;
     ConnManager::min_rtt = 0;
-    LOG(INFO) << "close finish!";
+    LOG(INFO) << "server do all close, finish work!";
+}
+
+int scp_close() {
+    //server不调�?    
+    if (ConnManager::isserver) {
+        LOG(WARNING) << "close method with no argument only access to client.";
+        return -1;
+    }
+    //std::vector<FakeConnection*> conns = ConnManager::get_all_connections();
+    
+    FakeConnection* fc = ConnManager::get_conn(ConnidManager::local_conn_id);
+    if (!fc) {
+        LOG(WARNING) << "nothing to close.";
+        return -1;
+    }
+    fc->establish_rst();
+    //send close packet;
+    fc->pkt_send(nullptr, -1);
+    close(ConnManager::local_send_fd);
+    if (ConnManager::tcp_enable)
+        close(ConnManager::local_recv_fd);
+    ConnManager::del_addr(fc->get_addr());
+    ConnManager::del_conn(fc->get_conn_id());
+    ConnManager::local_recv_fd = ConnManager::local_send_fd = 0;
+    ConnManager::min_rtt = 0;
+    LOG(INFO) << "client close finish!";
     return 0;
 }
 

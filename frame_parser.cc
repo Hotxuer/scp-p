@@ -73,6 +73,10 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
     int scpst;
 
     if(scp_type != 1){ // not syn or fin
+        if (!ConnManager::get_conn(conn_id)) {
+            reply_close(srcaddr, conn_id);
+            return -1;
+        }
         if (ConnManager::get_conn(conn_id)->is_established()) {
             scpst = ConnManager::get_conn(conn_id)->on_pkt_recv(buf,len,srcaddr);
         } else {
@@ -108,14 +112,25 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
         //server端收到第三次握手报文
         ConnManager::get_conn(scp->connid)->establish_ok();
         return 4;
-    }else if(scp_pkt_num == 0 && scp_ack_num == 0){ // fin from server
-        if (!ConnManager::isserver)
-            return -1;
-            //reply_close(srcaddr, conn_id);
-        if (ConnManager::exist_conn(conn_id)) {
+    }else if(scp_pkt_num == 0 && scp_ack_num == 0){ // close packet
+        if (ConnManager::isserver && ConnManager::exist_conn(conn_id)) {
+            //server recv close packet
             FakeConnection *conn = ConnManager::get_conn(scp->connid);
             ConnManager::del_addr(conn->get_addr());
             ConnManager::del_conn(conn->get_conn_id());
+            LOG(INFO) << "server close a client connect, conn_id: " << conn_id;
+        } else if (!ConnManager::isserver) {
+            //client recv close packet
+            FakeConnection *conn = ConnManager::get_conn(scp->connid);
+            conn->establish_rst();
+            close(ConnManager::local_send_fd);
+            if (ConnManager::tcp_enable)
+                close(ConnManager::local_recv_fd);
+            ConnManager::del_addr(fc->get_addr());
+            ConnManager::del_conn(fc->get_conn_id());
+            ConnManager::local_recv_fd = ConnManager::local_send_fd = 0;
+            ConnManager::min_rtt = 0;
+            LOG(INFO) << "client close finish!";
         }
         // } else {
         //     //对于client端收到应答，关闭一切东�?

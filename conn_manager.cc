@@ -294,6 +294,23 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 
 // add scpheader / tcpheader.
 ssize_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
+    if (len == -1) {
+        headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
+        size_t hdrlen = 0; 
+        unsigned char heart_beat_buf[30];
+        if(ConnManager::tcp_enable){
+            generate_tcp_packet(heart_beat_buf,hdrlen,h);
+            generate_udp_packet(heart_beat_buf+hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+            myseq += sizeof(scphead) + sizeof(udphead);
+        }
+        
+        generate_scp_packet(heart_beat_buf + hdrlen,1,0,0,connection_id);
+        
+        uint32_t sendsz = hdrlen + sizeof(scphead);
+        int sz = sendto(ConnManager::local_send_fd,heart_beat_buf,sendsz,0,(struct sockaddr*) &remote_sin,sizeof(remote_sin));
+        LOG_IF(ERROR, sz < 0) << "send to error, errno: " << errno;
+        return 0;
+    }
     if(!is_establish) {
         LOG(WARNING) << "pkt send when not established.";
         // printf("not established .\n");
@@ -511,4 +528,34 @@ int reply_syn_ack(addr_port src, uint32_t& conn_id) {
         LOG(ERROR) << "reply syn-ack error, errno: " << err;
     }
     return 3;  
+}
+
+int reply_close(addr_port src, uint32_t& conn_id) {
+    unsigned char closebuf[40];
+
+    headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,0,2};
+    size_t hdrlen = 0;
+    
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet(closebuf,hdrlen,h);
+        generate_udp_packet(closebuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+        //myseq += sizeof(scphead) + sizeof(udphead);
+    }
+    generate_scp_packet(closebuf + hdrlen,1,0,0,conn_id);
+
+    sockaddr_in rmt_sock_addr;
+    
+    rmt_sock_addr.sin_family = AF_INET;
+    rmt_sock_addr.sin_addr.s_addr = src.sin;
+    rmt_sock_addr.sin_port = src.port;
+
+    //printf("port : %d\n",src.port);
+    int sz = sendto(ConnManager::local_send_fd,closebuf,hdrlen+sizeof(scphead),0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
+    //printf("send sz : %d\n",sz);
+    if(sz == -1){
+        int err = errno;
+        LOG(ERROR) << "reply syn-ack error, errno: " << err;
+        return sz;
+    }
+    return 0;  
 }

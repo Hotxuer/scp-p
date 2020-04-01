@@ -98,11 +98,27 @@ void set_RTT(uint64_t rtt, FakeConnection* fc);
 void auto_cal_RTT(double rate, FakeConnection* fc);
 
 /**
-   * \brief close the scp socket, clear the FakeConnection and the working thread
+   * \brief close the scp socket, clear the FakeConnection and the working thread, only can be called by client
    *
    * \return 0 means success, -1 means failed
    */
 int scp_close();
+
+/**
+   * \brief close the scp socket, clear the FakeConnection and the working thread, only can be called by server
+   *
+   * \param fc the fakeConnection pointer
+   * \return 0 means success, -1 means failed
+   */
+int scp_close_all();
+
+/**
+   * \brief close the scp socket, clear the FakeConnection and the working thread, only can be called by server
+   *
+   * \param fc the fakeConnection pointer
+   * \return 0 means success, -1 means failed
+   */
+int scp_close(FakeConnection *fc);
 
 /**
    * \brief init the glog module

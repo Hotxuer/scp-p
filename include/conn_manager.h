@@ -387,4 +387,13 @@ int reply_syn(addr_port src,uint32_t& conn_id);
  */ 
 int reply_syn_ack(addr_port src, uint32_t& conn_id);
 
+/**
+ * called when server recv data packet after close!
+ * 
+ * \param addr_port the syn ack send server addr
+ * \param conn_id the corresponding conn_id
+ * \return 0 if success
+ */ 
+int reply_close(addr_port src, uint32_t& conn_id);
+
 #endif
