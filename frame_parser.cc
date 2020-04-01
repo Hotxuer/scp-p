@@ -126,8 +126,8 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
             close(ConnManager::local_send_fd);
             if (ConnManager::tcp_enable)
                 close(ConnManager::local_recv_fd);
-            ConnManager::del_addr(fc->get_addr());
-            ConnManager::del_conn(fc->get_conn_id());
+            ConnManager::del_addr(conn->get_addr());
+            ConnManager::del_conn(conn->get_conn_id());
             ConnManager::local_recv_fd = ConnManager::local_send_fd = 0;
             ConnManager::min_rtt = 0;
             LOG(INFO) << "client close finish!";
