@@ -206,6 +206,14 @@ public:
     FakeConnection(addr_port addr_pt);
 
     /**
+     * constructor with the addr_pt and aes_key, do some init work
+     * \param addr_pt the addr_port of other side of the virtual link device 
+     * \param enc_key the aes_key used to encrypto
+     * \param dec_key the aes_key used to dectypto
+     */ 
+    FakeConnection(addr_port addr_pt, AES_KEY enc_key, AES_KEY dec_key);
+
+    /**
      * do the packet recv work when recv the scp packet
      * 
      * \param buf the received scp packet buffer with scp header
@@ -316,6 +324,32 @@ public:
     uint64_t get_RTT(); /**get the now_rtt*/
 
     void set_RTT_cal_rate(double rate); /**set the cal now_rtt rate*/
+
+    void set_aes_key(AES_KEY enc_key, AES_KEY dec_key); /**set the aes encrypt and decrypt key*/
+
+    AES_KEY get_aes_enc_key(); /**get the aes encrypt key*/
+
+    AES_KEY get_aes_dec_key(); /**get the aes decrypt key*/
+
+    /**
+    * encrypto the package payload
+    * \param buffer the payload to encrypt
+    * \param len the length of buffer
+    * \return -1 : success, 0 : fail(no aes key initialization)
+    */
+    int encrypto_pkg(unsigned char* buffer, const size_t len);
+
+    /**
+    * decrypto the package payload
+    * \param buffer the payload to decrypt
+    * \param len the length of buffer
+    * \return -1 : success, 0 : fail(no aes key initialization)
+    */
+    int decrypto_pkg(unsigned char* buffer, const size_t len);
+
+    bool is_key_set(){ return is_set_key; }
+
+    void key_set_ok() { is_set_key = true; }
 private:
     // -- protocal options --
     bool using_tcp; /** choose if to use fake tcp header*/ 
@@ -365,6 +399,12 @@ private:
     std::bitset<BUF_NUM> buf_used; /**record the used send buffer*/
     // a lock used for retransmit
     std::bitset<BUF_NUM> buf_lock; /**do the buffer lock to mutex use the buffer*/
+
+    AES_KEY aes_enc_key; /** the aes key used to encrypt*/
+
+    AES_KEY aes_dec_key; /** the aes key used to decrypt*/
+
+    bool is_set_key; /**record if the aes keys are set*/
 
     friend class ConnManager;
 };

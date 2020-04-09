@@ -24,6 +24,11 @@
 #include <mutex>
 #include <chrono>
 #include <glog/logging.h>
+#include <openssl/aes.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <openssl/bio.h>
+
 
 /**
    * \brief get the timestamp in seconds

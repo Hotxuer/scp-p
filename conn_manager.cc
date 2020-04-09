@@ -162,6 +162,18 @@ FakeConnection::FakeConnection(addr_port addr_pt):remote_ip_port(addr_pt){
     last_active_time = getMillis();
 };
 
+FakeConnection::FakeConnection(addr_port addr_pt, AES_KEY enc_key, AES_KEY dec_key):remote_ip_port(addr_pt), aes_enc_key(enc_key), aes_dec_key(dec_key){
+    remote_sin.sin_family = AF_INET;
+    remote_sin.sin_addr.s_addr = addr_pt.sin;
+    remote_sin.sin_port = addr_pt.port;
+    pkt_in_buf = 0;
+    using_tcp = 1;
+    now_rtt = 20;
+    rtt_cal_rate = 0.2;
+    last_active_time = getMillis();
+    key_set_ok();
+};
+
 
 bool FakeConnection::lock_buffer(size_t bufnum){
     if(buf_lock.test(bufnum)){
@@ -341,6 +353,10 @@ ssize_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         //printf("buffer is full.\n");
         return 0;
     }
+    // encrypto the buffer
+    if (!encrypto_pkg((unsigned char*)buffer, len)) {
+        LOG(WARNING) << "No aes key set, encrypto failed.";
+    }
     // select a buffer and copy the packet to the buffer
     uint16_t tot_len;
     if(ConnManager::tcp_enable){
@@ -399,6 +415,44 @@ uint64_t FakeConnection::get_RTT() {
 
 void FakeConnection::set_RTT_cal_rate(double rate) {
     this->rtt_cal_rate = rate;
+}
+
+void FakeConnection::set_aes_key(AES_KEY enc_key, AES_KEY dec_key) {
+    this->aes_enc_key = enc_key;
+    this->aes_dec_key = dec_key;
+    key_set_ok();
+}
+
+AES_KEY FakeConnection::get_aes_enc_key() {
+    return this->aes_enc_key;
+}
+
+AES_KEY FakeConnection::get_aes_dec_key() {
+    return this->aes_dec_key;
+}
+
+int FakeConnection::encrypto_pkg(unsigned char* buffer, const size_t len) {
+    if (!is_key_set()) return 0;
+    int tem = 0;
+    AES_KEY key = get_aes_enc_key();
+    // loop encryption, the length of each loop is AES_BLOCK_SIZE
+    while (tem < len) {
+        AES_encrypt(buffer+tem, buffer+tem, &key);
+        tem += AES_BLOCK_SIZE;
+    }
+    return -1;
+}
+
+int FakeConnection::decrypto_pkg(unsigned char* buffer, const size_t len) {
+    if (!is_key_set()) return 0;
+    int tem = 0;
+    AES_KEY key = get_aes_dec_key();
+    // loop decryption, the length of each loop is AES_BLOCK_SIZE
+    while (tem < len) {
+        AES_decrypt(buffer+tem, buffer+tem, &key);
+        tem += AES_BLOCK_SIZE;
+    }
+    return -1;
 }
 
 size_t FakeConnection::pkt_resend(size_t bufnum){
@@ -461,8 +515,14 @@ int reply_syn(addr_port src,uint32_t& conn_id){
         conn_id = ConnManager::get_connid(src);
         //printf("conn_id : %d.\n",conn_id);
     }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
+        // generate aes key
+        AES_KEY enc_key, dec_key;
+        char user_key[AES_BLOCK_SIZE];
+        memcpy(user_key, "zheshiopensslexq", 16);
+        AES_set_encrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &enc_key);
+        AES_set_decrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &dec_key);
         conn_id = ConnidManager::getConnID();
-        ConnManager::add_conn(conn_id,new FakeConnection(src));
+        ConnManager::add_conn(conn_id,new FakeConnection(src, enc_key, dec_key));
         ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
         //ConnManager::get_conn(conn_id)->establish_ok();
         ConnManager::get_conn(conn_id)->update_para(0,1);
