@@ -248,6 +248,13 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         //     return -5;
         // }
 
+        // decrypto the buffer
+        LOG(INFO) << "payload before decrypto is " << (char*)(buffer+16);
+        if (!decrypto_pkg((unsigned char*)(buffer+16), len-16)) {
+        LOG(WARNING) << "No aes key set, encrypto failed.";
+        }
+        LOG(INFO) << "payload after decrypto is " << (char*)(buffer+16);
+
         uint16_t pkt_seq = scp->pktnum;
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
         size_t hdrlen = 0; 
@@ -354,9 +361,11 @@ ssize_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         return 0;
     }
     // encrypto the buffer
+    LOG(INFO) << "payload before encrypto is " << (char*)buffer;
     if (!encrypto_pkg((unsigned char*)buffer, len)) {
         LOG(WARNING) << "No aes key set, encrypto failed.";
     }
+    LOG(INFO) << "payload after encrypto is " << (char*)buffer;
     // select a buffer and copy the packet to the buffer
     uint16_t tot_len;
     if(ConnManager::tcp_enable){

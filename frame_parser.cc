@@ -101,7 +101,13 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
             ConnManager::del_conn(localid);
         }
         if(localid != conn_id){
-            ConnManager::add_conn(conn_id,new FakeConnection(srcaddr));
+            // generate aes key
+            AES_KEY enc_key, dec_key;
+            char user_key[AES_BLOCK_SIZE];
+            memcpy(user_key, "zheshiopensslexq", 16);
+            AES_set_encrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &enc_key);
+            AES_set_decrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &dec_key);
+            ConnManager::add_conn(conn_id,new FakeConnection(srcaddr, enc_key, dec_key));
             ConnidManager::local_conn_id = conn_id;
         }
         ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
