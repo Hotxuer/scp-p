@@ -250,11 +250,11 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 
         // decrypto the buffer
         int scp_head_length = sizeof(scphead);
-        LOG(INFO) << "payload before decrypto is " << (char*)(buffer+scp_head_length);
-        if (!decrypto_pkg((unsigned char*)(buffer+scp_head_length), len-scp_head_length)) {
+        LOG(INFO) << "payload before decrypto is " << (char*)(buf+scp_head_length);
+        if (!decrypto_pkg((unsigned char*)(buf+scp_head_length), len-scp_head_length)) {
         LOG(WARNING) << "No aes key set, encrypto failed.";
         }
-        LOG(INFO) << "payload after decrypto is " << (char*)(buffer+16);
+        LOG(INFO) << "payload after decrypto is " << (char*)(buf+scp_head_length);
 
         uint16_t pkt_seq = scp->pktnum;
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
@@ -446,11 +446,11 @@ int FakeConnection::encrypto_pkg(unsigned char* buffer, size_t* len) {
     int tem = 0;
     AES_KEY key = get_aes_enc_key();
     // loop encryption, the length of each loop is AES_BLOCK_SIZE
-    while (tem < len) {
+    while (tem < *len) {
         AES_encrypt(buffer+tem, buffer+tem, &key);
         tem += AES_BLOCK_SIZE;
     }
-    len = ((len-1)/AES_BLOCK_SIZE)*AES_BLOCK_SIZE + AES_BLOCK_SIZE;
+    *len = ((*len-1)/AES_BLOCK_SIZE)*AES_BLOCK_SIZE + AES_BLOCK_SIZE;
     return -1;
 }
 
