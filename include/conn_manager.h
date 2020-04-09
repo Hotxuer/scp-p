@@ -337,7 +337,7 @@ public:
     * \param len the length of buffer
     * \return -1 : success, 0 : fail(no aes key initialization)
     */
-    int encrypto_pkg(unsigned char* buffer, const size_t len);
+    int encrypto_pkg(unsigned char* buffer, size_t* len);
 
     /**
     * decrypto the package payload

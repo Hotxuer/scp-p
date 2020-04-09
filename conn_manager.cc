@@ -249,8 +249,9 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         // }
 
         // decrypto the buffer
-        LOG(INFO) << "payload before decrypto is " << (char*)(buffer+16);
-        if (!decrypto_pkg((unsigned char*)(buffer+16), len-16)) {
+        int scp_head_length = sizeof(scphead);
+        LOG(INFO) << "payload before decrypto is " << (char*)(buffer+scp_head_length);
+        if (!decrypto_pkg((unsigned char*)(buffer+scp_head_length), len-scp_head_length)) {
         LOG(WARNING) << "No aes key set, encrypto failed.";
         }
         LOG(INFO) << "payload after decrypto is " << (char*)(buffer+16);
@@ -362,7 +363,7 @@ ssize_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
     }
     // encrypto the buffer
     LOG(INFO) << "payload before encrypto is " << (char*)buffer;
-    if (!encrypto_pkg((unsigned char*)buffer, len)) {
+    if (!encrypto_pkg((unsigned char*)buffer, &len)) {
         LOG(WARNING) << "No aes key set, encrypto failed.";
     }
     LOG(INFO) << "payload after encrypto is " << (char*)buffer;
@@ -440,7 +441,7 @@ AES_KEY FakeConnection::get_aes_dec_key() {
     return this->aes_dec_key;
 }
 
-int FakeConnection::encrypto_pkg(unsigned char* buffer, const size_t len) {
+int FakeConnection::encrypto_pkg(unsigned char* buffer, size_t* len) {
     if (!is_key_set()) return 0;
     int tem = 0;
     AES_KEY key = get_aes_enc_key();
@@ -449,6 +450,7 @@ int FakeConnection::encrypto_pkg(unsigned char* buffer, const size_t len) {
         AES_encrypt(buffer+tem, buffer+tem, &key);
         tem += AES_BLOCK_SIZE;
     }
+    len = ((len-1)/AES_BLOCK_SIZE)*AES_BLOCK_SIZE + AES_BLOCK_SIZE;
     return -1;
 }
 
