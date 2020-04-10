@@ -419,6 +419,17 @@ private:
 int reply_syn(addr_port src,uint32_t& conn_id);
 
 /**
+ * called when recv 1st handshake packet, only called by server!
+ * 
+ * \param addr_port the connect request client addr
+ * \param conn_id the corresponding conn_id, if not exist, allocate a new id
+ * \param buf the received scp packet buffer with scp header
+ * \param len length of the buf
+ * \return 1 if it is a exist connect, 2 if it is a new connect
+ */ 
+int reply_syn(addr_port src,uint32_t& conn_id, char* buf,size_t len);
+
+/**
  * called when recv 2nd handshake packet, only called by client!
  * 
  * \param addr_port the syn ack send server addr

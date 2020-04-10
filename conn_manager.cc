@@ -250,11 +250,11 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
 
         // decrypto the buffer
         int scp_head_length = sizeof(scphead);
-        LOG(INFO) << "payload before decrypto is " << (char*)(buf+scp_head_length);
-        if (!decrypto_pkg((unsigned char*)(buf+scp_head_length), len-scp_head_length)) {
+        LOG(INFO) << "payload before decrypto is " << (char*)buf+scp_head_length;
+        if (!decrypto_pkg((unsigned char*)buf+scp_head_length, len-scp_head_length)) {
         LOG(WARNING) << "No aes key set, encrypto failed.";
         }
-        LOG(INFO) << "payload after decrypto is " << (char*)(buf+scp_head_length);
+        LOG(INFO) << "payload after decrypto is " << (char*)buf+scp_head_length;
 
         uint16_t pkt_seq = scp->pktnum;
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
@@ -518,6 +518,67 @@ uint64_t FakeConnection::get_last_acitve_time() {
     return last_active_time;
 }
 
+int reply_syn(addr_port src,uint32_t& conn_id, char* buf,size_t len){
+    int ret = 1;
+    // generate aes key (no matter whether it is a existing address, do update the key)
+    AES_KEY enc_key, dec_key;
+    unsigned char user_key[AES_BLOCK_SIZE];
+    generate_rand_str(user_key, AES_BLOCK_SIZE/2);
+    memcpy(user_key+AES_BLOCK_SIZE/2, (unsigned char*)buf+sizeof(scphead), AES_BLOCK_SIZE/2);
+    AES_set_encrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &enc_key);
+    AES_set_decrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &dec_key);
+    if(ConnManager::exist_addr(src)){
+        //printf("exist address.\n");
+        //printf("conn_id : %d.\n",conn_id);
+        conn_id = ConnManager::get_connid(src);
+        //printf("conn_id : %d.\n",conn_id);
+        
+        // update aes key
+        ConnManager::get_conn(conn_id)->set_aes_key(enc_key, dec_key);
+    }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
+        conn_id = ConnidManager::getConnID();
+        ConnManager::add_conn(conn_id,new FakeConnection(src, enc_key, dec_key));
+        ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
+        //ConnManager::get_conn(conn_id)->establish_ok();
+        ConnManager::get_conn(conn_id)->update_para(0,1);
+        ConnManager::add_addr(src,conn_id);
+        
+        // std::thread thr(wait_reply_syn_ack, src, conn_id);
+        // thr.detach();
+
+        ret = 2;
+    }
+    unsigned char ackbuf[40];
+    headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,1};
+    size_t hdrlen = 0;
+
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet(ackbuf,hdrlen,h);
+        generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    }
+    generate_scp_packet(ackbuf + hdrlen,1,0,0x7fff,conn_id);
+
+    sockaddr_in rmt_sock_addr;
+    
+    rmt_sock_addr.sin_family = AF_INET;
+    rmt_sock_addr.sin_addr.s_addr = src.sin;
+    rmt_sock_addr.sin_port = src.port;
+
+    //printf("port : %d\n",src.port);
+    size_t sendsz = hdrlen+sizeof(scphead);
+    // add random initial key
+    memcpy(ackbuf+sendsz, user_key, AES_BLOCK_SIZE);
+    sendsz += AES_BLOCK_SIZE;
+    int sz = sendto(ConnManager::local_send_fd,ackbuf,sendsz,0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
+    //printf("send sz : %d\n",sz);
+    if(sz == -1){
+        int err = errno;
+        //printf("errno %d.\n",err);
+        LOG(ERROR) << "reply syn error, errno: " << err;
+    }
+    return ret;  
+}
+
 int reply_syn(addr_port src,uint32_t& conn_id){
     int ret = 1;
     if(ConnManager::exist_addr(src)){
@@ -526,14 +587,8 @@ int reply_syn(addr_port src,uint32_t& conn_id){
         conn_id = ConnManager::get_connid(src);
         //printf("conn_id : %d.\n",conn_id);
     }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
-        // generate aes key
-        AES_KEY enc_key, dec_key;
-        char user_key[AES_BLOCK_SIZE];
-        memcpy(user_key, "zheshiopensslexq", 16);
-        AES_set_encrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &enc_key);
-        AES_set_decrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &dec_key);
         conn_id = ConnidManager::getConnID();
-        ConnManager::add_conn(conn_id,new FakeConnection(src, enc_key, dec_key));
+        ConnManager::add_conn(conn_id,new FakeConnection(src));
         ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
         //ConnManager::get_conn(conn_id)->establish_ok();
         ConnManager::get_conn(conn_id)->update_para(0,1);

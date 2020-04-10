@@ -32,3 +32,14 @@ uint64_t getMicrosDiff(uint64_t past) {
                   now().time_since_epoch()).count();
     return now - past;
 }
+
+void generate_rand_str(unsigned char* str, uint32_t len) {
+    char base = 'A';
+    int range = 58;
+    srand((int)time(0));
+    memset(str, 0, len);
+    for (int i = 0; i < len - 1; i++)
+    {
+        *(str+i) = (unsigned char)(base + (rand() % range));
+    }
+}

@@ -67,4 +67,12 @@ uint64_t getMillsDiff(uint64_t past);
    */
 uint64_t getMicrosDiff(uint64_t past);
 
+/**
+   * \brief generate random string with given length
+   *
+   * \param str beginning char* of generated random string
+   * \param len the length of generated random string
+   */
+void generate_rand_str(unsigned char* str, uint32_t len);
+
 #endif // !COMMON_LIB_H
