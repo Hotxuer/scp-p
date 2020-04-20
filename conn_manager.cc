@@ -162,6 +162,18 @@ FakeConnection::FakeConnection(addr_port addr_pt):remote_ip_port(addr_pt){
     last_active_time = getMillis();
 };
 
+FakeConnection::FakeConnection(addr_port addr_pt, AES_KEY enc_key, AES_KEY dec_key):remote_ip_port(addr_pt), aes_enc_key(enc_key), aes_dec_key(dec_key){
+    remote_sin.sin_family = AF_INET;
+    remote_sin.sin_addr.s_addr = addr_pt.sin;
+    remote_sin.sin_port = addr_pt.port;
+    pkt_in_buf = 0;
+    using_tcp = 1;
+    now_rtt = 20;
+    rtt_cal_rate = 0.2;
+    last_active_time = getMillis();
+    key_set_ok();
+};
+
 
 bool FakeConnection::lock_buffer(size_t bufnum){
     if(buf_lock.test(bufnum)){
@@ -235,6 +247,14 @@ int FakeConnection::on_pkt_recv(void* buf,size_t len,addr_port srcaddr){ // udp 
         //     reply_syn(remote_ip_port, scp->conn_id);
         //     return -5;
         // }
+
+        // decrypto the buffer
+        int scp_head_length = sizeof(scphead);
+        LOG(INFO) << "payload before decrypto is " << (char*)buf+scp_head_length;
+        if (!decrypto_pkg((unsigned char*)buf+scp_head_length, len-scp_head_length)) {
+        LOG(WARNING) << "No aes key set, encrypto failed.";
+        }
+        LOG(INFO) << "payload after decrypto is " << (char*)buf+scp_head_length;
 
         uint16_t pkt_seq = scp->pktnum;
         headerinfo h= {remote_ip_port.sin,ConnManager::get_local_port(),remote_ip_port.port,myseq,myack,2};
@@ -341,6 +361,12 @@ ssize_t FakeConnection::pkt_send(const void* buffer,size_t len){ // modify ok
         //printf("buffer is full.\n");
         return 0;
     }
+    // encrypto the buffer
+    LOG(INFO) << "payload before encrypto is " << (char*)buffer;
+    if (!encrypto_pkg((unsigned char*)buffer, &len)) {
+        LOG(WARNING) << "No aes key set, encrypto failed.";
+    }
+    LOG(INFO) << "payload after encrypto is " << (char*)buffer;
     // select a buffer and copy the packet to the buffer
     uint16_t tot_len;
     if(ConnManager::tcp_enable){
@@ -401,6 +427,45 @@ void FakeConnection::set_RTT_cal_rate(double rate) {
     this->rtt_cal_rate = rate;
 }
 
+void FakeConnection::set_aes_key(AES_KEY enc_key, AES_KEY dec_key) {
+    this->aes_enc_key = enc_key;
+    this->aes_dec_key = dec_key;
+    key_set_ok();
+}
+
+AES_KEY FakeConnection::get_aes_enc_key() {
+    return this->aes_enc_key;
+}
+
+AES_KEY FakeConnection::get_aes_dec_key() {
+    return this->aes_dec_key;
+}
+
+int FakeConnection::encrypto_pkg(unsigned char* buffer, size_t* len) {
+    if (!is_key_set()) return 0;
+    int tem = 0;
+    AES_KEY key = get_aes_enc_key();
+    // loop encryption, the length of each loop is AES_BLOCK_SIZE
+    while (tem < *len) {
+        AES_encrypt(buffer+tem, buffer+tem, &key);
+        tem += AES_BLOCK_SIZE;
+    }
+    *len = ((*len-1)/AES_BLOCK_SIZE)*AES_BLOCK_SIZE + AES_BLOCK_SIZE;
+    return -1;
+}
+
+int FakeConnection::decrypto_pkg(unsigned char* buffer, const size_t len) {
+    if (!is_key_set()) return 0;
+    int tem = 0;
+    AES_KEY key = get_aes_dec_key();
+    // loop decryption, the length of each loop is AES_BLOCK_SIZE
+    while (tem < len) {
+        AES_decrypt(buffer+tem, buffer+tem, &key);
+        tem += AES_BLOCK_SIZE;
+    }
+    return -1;
+}
+
 size_t FakeConnection::pkt_resend(size_t bufnum){
     if(!is_establish) {
         resend_map[bufnum] += 1.5*now_rtt;
@@ -451,6 +516,67 @@ uint32_t FakeConnection::get_conn_id(){
 
 uint64_t FakeConnection::get_last_acitve_time() {
     return last_active_time;
+}
+
+int reply_syn(addr_port src,uint32_t& conn_id, char* buf,size_t len){
+    int ret = 1;
+    // generate aes key (no matter whether it is a existing address, do update the key)
+    AES_KEY enc_key, dec_key;
+    unsigned char user_key[AES_BLOCK_SIZE];
+    generate_rand_str(user_key, AES_BLOCK_SIZE/2);
+    memcpy(user_key+AES_BLOCK_SIZE/2, (unsigned char*)buf+sizeof(scphead), AES_BLOCK_SIZE/2);
+    AES_set_encrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &enc_key);
+    AES_set_decrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &dec_key);
+    if(ConnManager::exist_addr(src)){
+        //printf("exist address.\n");
+        //printf("conn_id : %d.\n",conn_id);
+        conn_id = ConnManager::get_connid(src);
+        //printf("conn_id : %d.\n",conn_id);
+        
+        // update aes key
+        ConnManager::get_conn(conn_id)->set_aes_key(enc_key, dec_key);
+    }else if(conn_id == 0 || !ConnManager::exist_conn(conn_id)){ // a new request or the connid not exist
+        conn_id = ConnidManager::getConnID();
+        ConnManager::add_conn(conn_id,new FakeConnection(src, enc_key, dec_key));
+        ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
+        //ConnManager::get_conn(conn_id)->establish_ok();
+        ConnManager::get_conn(conn_id)->update_para(0,1);
+        ConnManager::add_addr(src,conn_id);
+        
+        // std::thread thr(wait_reply_syn_ack, src, conn_id);
+        // thr.detach();
+
+        ret = 2;
+    }
+    unsigned char ackbuf[40];
+    headerinfo h = {src.sin,ConnManager::get_local_port(),src.port,0,1,1};
+    size_t hdrlen = 0;
+
+    if(ConnManager::tcp_enable){
+        generate_tcp_packet(ackbuf,hdrlen,h);
+        generate_udp_packet(ackbuf + hdrlen,h.src_port,h.dest_port,hdrlen,sizeof(scphead));
+    }
+    generate_scp_packet(ackbuf + hdrlen,1,0,0x7fff,conn_id);
+
+    sockaddr_in rmt_sock_addr;
+    
+    rmt_sock_addr.sin_family = AF_INET;
+    rmt_sock_addr.sin_addr.s_addr = src.sin;
+    rmt_sock_addr.sin_port = src.port;
+
+    //printf("port : %d\n",src.port);
+    size_t sendsz = hdrlen+sizeof(scphead);
+    // add random initial key
+    memcpy(ackbuf+sendsz, user_key, AES_BLOCK_SIZE);
+    sendsz += AES_BLOCK_SIZE;
+    int sz = sendto(ConnManager::local_send_fd,ackbuf,sendsz,0,(struct sockaddr *)&rmt_sock_addr,sizeof(rmt_sock_addr));
+    //printf("send sz : %d\n",sz);
+    if(sz == -1){
+        int err = errno;
+        //printf("errno %d.\n",err);
+        LOG(ERROR) << "reply syn error, errno: " << err;
+    }
+    return ret;  
 }
 
 int reply_syn(addr_port src,uint32_t& conn_id){

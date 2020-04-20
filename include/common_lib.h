@@ -24,6 +24,11 @@
 #include <mutex>
 #include <chrono>
 #include <glog/logging.h>
+#include <openssl/aes.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <openssl/bio.h>
+
 
 /**
    * \brief get the timestamp in seconds
@@ -61,5 +66,13 @@ uint64_t getMillsDiff(uint64_t past);
    * \return time duration between past and now in microseconds
    */
 uint64_t getMicrosDiff(uint64_t past);
+
+/**
+   * \brief generate random string with given length
+   *
+   * \param str beginning char* of generated random string
+   * \param len the length of generated random string
+   */
+void generate_rand_str(unsigned char* str, uint32_t len);
 
 #endif // !COMMON_LIB_H

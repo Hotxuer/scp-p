@@ -137,6 +137,11 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     //generate_udp_packet(tmp_send_buf + hdrlen,)
     generate_scp_packet(tmp_send_buf+hdrlen,1,0x7fff,0,ConnidManager::local_conn_id);
     size_t sendsz = hdrlen + sizeof(scphead);
+    // add random string to be part of initial crypto key
+    unsigned char* rand_key = new unsigned char[AES_BLOCK_SIZE/2];
+    generate_rand_str(rand_key, AES_BLOCK_SIZE/2);
+    memcpy(tmp_send_buf+sendsz, rand_key, AES_BLOCK_SIZE/2);
+    sendsz += AES_BLOCK_SIZE/2;
     sendto(ConnManager::local_send_fd,tmp_send_buf,sendsz,0,(struct sockaddr *)&server_addr,sizeof(server_addr));
 
     //printf("send syn ok\n"); 

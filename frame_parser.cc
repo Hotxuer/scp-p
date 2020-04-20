@@ -89,7 +89,7 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
 
     if(scp_pkt_num == 0x7fff && scp_ack_num == 0){ // syn
         if(! ConnManager::isserver) return -1;
-        scpst = reply_syn(srcaddr,conn_id);
+        scpst = reply_syn(srcaddr,conn_id, buf, len);
         ConnManager::get_conn(conn_id)->on_pkt_recv(buf,len,srcaddr);
         return scpst;        
     }else if(scp_pkt_num == 0 && scp_ack_num == 0x7fff){ //syn-ack
@@ -106,6 +106,13 @@ int parse_scp_frame(char* buf, size_t len,uint32_t& conn_id, addr_port& srcaddr)
         }
         ConnManager::get_conn(conn_id)->set_conn_id(conn_id);
         ConnManager::get_conn(conn_id)->establish_ok();
+        // generate and update aes key
+        AES_KEY enc_key, dec_key;
+        char user_key[AES_BLOCK_SIZE];
+        memcpy(user_key, buf+sizeof(scphead), AES_BLOCK_SIZE);
+        AES_set_encrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &enc_key);
+        AES_set_decrypt_key((const unsigned char *)user_key, AES_BLOCK_SIZE * 8, &dec_key);
+        ConnManager::get_conn(conn_id)->set_aes_key(enc_key, dec_key);
         return reply_syn_ack(srcaddr, conn_id);
         //ConnManager::get_conn(conn_id)->update_para(1,1);        
     }else if(scp_pkt_num == 0x7fff && scp_ack_num == 0x7fff){ // 3-shakehand from cli to ser
