@@ -36,7 +36,7 @@ void rst_thread(int serviceid){
     while(sigs --){
         int gap = u(e); 
         std::this_thread::sleep_for(std::chrono::milliseconds(gap));  
-        //pthread_kill(serviceid,SIGUSR1);
+        pthread_kill(serviceid,SIGUSR1);
     }
 }
 
@@ -156,8 +156,6 @@ int main(int argc, char const *argv[])
                     //std::string msg = "";
                     //msg += op;
                     msgbuffer[0] = '0' + op;
-                    msgbuffer[1] = '\0';
-                    std::cout<<"op -- "<<msgbuffer[0]<<std::endl;
                     scp_send(msgbuffer,2,ConnManager::get_conn(ConnidManager::local_conn_id));
                 }
         }

@@ -128,6 +128,10 @@ void handle_event(evutil_socket_t listener, short event, void *arg){
         // record the ack-message
     }
     if(stat == 7){
+        std::cout<<"recvlen"<<n <<std::endl;
+        std::cout<<std::endl;
+        char myc = ev_args->recvbuf[8];
+        std::cout<<"myc--"<<myc<<std::endl;
         int md = ev_args->recvbuf[8] - '0';
         if(!issending){
             issending = 1;

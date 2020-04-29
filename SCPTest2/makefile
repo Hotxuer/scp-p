@@ -1,6 +1,6 @@
 all: ./bin/scp_server ./bin/scp_client ./bin/tcp_server ./bin/tcp_client
 CC=g++
-CFLAGS=-O2 -g
+CFLAGS=-O2
 
 ./bin/scp_server: ./obj/scp_server.o ../lib/scplib.a
 	$(CC) $^ $(CFLAGS) -o $@ -L /usr/lib/libevent/lib/ -levent -lpthread -lglog -lgflags -lssl -lcrypto
