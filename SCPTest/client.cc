@@ -8,7 +8,6 @@
 #define LOCAL_ADDR "202.120.38.100"
 #define REMOTE_ADDR "202.120.38.131"
 
-
 // init a raw socket
 void service_thread(bool isserver){
     int stat;size_t n;
