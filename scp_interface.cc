@@ -50,9 +50,10 @@ int scp_bind(in_addr_t localip , uint16_t port){
 }
 
 
-int init_rawsocket(bool tcpenable, bool isserver){
+int init_rawsocket(bool tcpenable, bool isserver, bool encryptoenable){
     ConnManager::isserver = isserver;
     ConnManager::tcp_enable = tcpenable;
+    ConnManager::encrypto_enable = encryptoenable;
     if(ConnManager::local_send_fd != 0 || ConnManager::local_recv_fd != 0){
         // This method should only be active once.
         return -1;
@@ -137,11 +138,14 @@ int scp_connect(in_addr_t remote_ip,uint16_t remote_port){
     //generate_udp_packet(tmp_send_buf + hdrlen,)
     generate_scp_packet(tmp_send_buf+hdrlen,1,0x7fff,0,ConnidManager::local_conn_id);
     size_t sendsz = hdrlen + sizeof(scphead);
-    // add random string to be part of initial crypto key
-    unsigned char* rand_key = new unsigned char[AES_BLOCK_SIZE/2];
-    generate_rand_str(rand_key, AES_BLOCK_SIZE/2);
-    memcpy(tmp_send_buf+sendsz, rand_key, AES_BLOCK_SIZE/2);
-    sendsz += AES_BLOCK_SIZE/2;
+
+    if (ConnManager::encrypto_enable) {
+        // add random string to be part of initial crypto key
+        unsigned char* rand_key = new unsigned char[AES_BLOCK_SIZE/2];
+        generate_rand_str(rand_key, AES_BLOCK_SIZE/2);
+        memcpy(tmp_send_buf+sendsz, rand_key, AES_BLOCK_SIZE/2);
+        sendsz += AES_BLOCK_SIZE/2;
+    }
     sendto(ConnManager::local_send_fd,tmp_send_buf,sendsz,0,(struct sockaddr *)&server_addr,sizeof(server_addr));
 
     //printf("send syn ok\n"); 

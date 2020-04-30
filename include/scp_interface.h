@@ -17,7 +17,7 @@ int scp_bind(in_addr_t localip , uint16_t port);
    * \param isserver choose to init in server or in client device
    * \return -1 means failed, 0 means success
    */
-int init_rawsocket(bool tcpenable, bool isserver);
+int init_rawsocket(bool tcpenable, bool isserver, bool encryptoenable = false);
 
 /**
    * \brief init a socket and create the resend and clear thread with Fake Tcpheader mode

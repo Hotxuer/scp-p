@@ -165,6 +165,11 @@ public:
      * record if the scp-p will add fake tcp header
      */ 
     static bool tcp_enable;
+
+    /**
+     * record if enable encrypto mudule
+     */
+    static bool encrypto_enable;
 private:
     /**
      * record all the FakeConnection pointer by the target conn id
